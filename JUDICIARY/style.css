@@ -29,7 +29,7 @@ body{
   min-height:100vh;
 }
 
-/* ============ LEFT PANEL ============ */
+
 .left{
   background:
     repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0px, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 40px),
@@ -55,7 +55,7 @@ body{
   height:108px;
 }
 
-/* logo image sizing — keeps aspect ratio, no stretching */
+
 img.seal{
   height:108px;
   width:auto;
@@ -108,7 +108,7 @@ img.seal{
 }
 .left-foot strong{ color:#C7D3CB; font-weight:600; }
 
-/* ============ RIGHT PANEL ============ */
+
 .right{
   background:var(--paper);
   display:flex;

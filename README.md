@@ -1,6 +1,6 @@
 # Judiciary of Kenya — Internal Notice Board
 
-A lightweight, web-based internal notice board for the Judiciary of Kenya's Tribunals. It enables tribunal admins to post official notices and manage staff memo submissions, and provides staff with a clean, searchable view of notices and shared documents relevant to their tribunal.
+A web-based internal notice board for the Judiciary of Kenya's Tribunals. Tribunal admins post official notices and manage staff memo submissions. Staff get a clean, searchable feed of notices and shared documents scoped to their tribunal.
 
 ---
 
@@ -10,6 +10,7 @@ A lightweight, web-based internal notice board for the Judiciary of Kenya's Trib
 - [Features](#features)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
+- [API Reference](#api-reference)
 - [User Roles](#user-roles)
 - [Tribunals](#tribunals)
 - [Database](#database)
@@ -20,29 +21,29 @@ A lightweight, web-based internal notice board for the Judiciary of Kenya's Trib
 
 ## Overview
 
-The Internal Notice Board serves as a centralised digital noticeboard for Kenyan judiciary tribunals. Staff log in with their **User ID and password** and see only the notices and documents relevant to their tribunal (plus any system-wide public notices). Admins can post notices, approve or reject staff memo submissions, and manage a shared document library.
+Staff log in with their **Staff ID and password** and see only the notices and documents relevant to their tribunal, plus any system-wide public notices. The role (`admin` or `staff`) is stored in the database — no hardcoded IDs. Admins are created directly in the database; all self-registrations are staff accounts.
 
 ---
 
 ## Features
 
 ### For All Users
-- 🔐 **Authenticated login** — User ID + password login with role-based access
-- 📋 **Notice feed** — Searchable, filterable list of all relevant notices
+- 🔐 **Authenticated login** — Staff ID + password, session-based auth (8-hour session)
+- 📋 **Notice feed** — Searchable, filterable list of notices scoped to the user's tribunal
 - 📌 **Pinned urgent notices** — Urgent items float to the top with a red treatment
-- 📁 **Documents tab** — Browse and open all notice attachments plus shared resources
-- 🔔 **Notification bell** — Real-time in-app notifications panel with unread indicator
+- 📁 **Documents tab** — Browse shared resources and notice attachments
+- 🔔 **Notification bell** — In-app notifications with unread indicator
 - 🖨️ **Print support** — Print any notice with or without attachment details
 
 ### For Staff
 - 📝 **Submit memos** — Draft and submit memos to a tribunal admin for review
-- 📂 **My Submissions** — Track the status of all submitted memos (pending / approved / rejected)
+- 📂 **My Submissions** — Track memo status (pending / approved / rejected)
 - ↩️ **Withdraw memos** — Cancel a pending memo before the admin acts on it
 
 ### For Admins
 - 📣 **Post notices** — Publish notices immediately to one or all tribunals
 - ✅ **Approvals queue** — Review, approve, or reject pending staff memo submissions
-- 📎 **Resource library** — Upload standalone documents (forms, circulars, templates) to the Documents tab
+- 📎 **Resource library** — Add shared documents (forms, circulars, templates) by URL
 - 👁️ **Cross-tribunal view** — Filter notices and documents across all six tribunals
 
 ---
@@ -51,18 +52,39 @@ The Internal Notice Board serves as a centralised digital noticeboard for Kenyan
 
 ```
 tribunal_notice_board/
-├── index.html          # Main application shell & all HTML views
-├── style.css           # All styles (design tokens, layout, components)
-├── logo.png            # Judiciary of Kenya logo
-└── src/
-    └── script.js       # Application logic (data, rendering, events)
+├── .gitignore
+├── README.md
+├── schema.md               # Full database schema documentation
+│
+├── JUDICIARY/              # Login & registration frontend
+│   ├── index.html          # Login page
+│   ├── register.html       # Staff registration page
+│   ├── script.js           # Login logic — calls POST /api/auth/login
+│   ├── register.js         # Registration logic — calls POST /api/auth/register
+│   ├── style.css
+│   ├── judiciary-logo.png
+│   │
+│   └── backend/            # Node.js / Express REST API
+│       ├── server.js       # App entry point
+│       ├── db.js           # SQLite connection & initialisation (sql.js)
+│       ├── schema.sql      # Database schema + tribunal seed data
+│       ├── package.json
+│       ├── sessions/       # Session files (git-ignored)
+│       ├── database.db     # SQLite database file (git-ignored)
+│       └── routes/
+│           ├── auth.js         # /api/auth/*
+│           ├── notices.js      # /api/notices/*
+│           ├── resources.js    # /api/resources/*
+│           └── notifications.js # /api/notifications/*
+│
+└── dashboard2/             # Main dashboard frontend
+    ├── dashboard.html
+    ├── logo.png
+    ├── css/
+    │   └── style.css
+    └── js/
+        └── dashboard.js    # Dashboard logic — fetches from API
 ```
-
-> **Planned additions** (see [Roadmap](#roadmap)):
-> - `backend/` — Python/Node.js REST API
-> - `backend/database.db` — SQLite database file
- 
-> - `backend/schema.sql` — Database creation script
 
 ---
 
@@ -70,35 +92,101 @@ tribunal_notice_board/
 
 ### Prerequisites
 
-- A modern web browser (Chrome, Firefox, Edge, or Safari)
-- A local web server (recommended) **or** open `index.html` directly in a browser
+- [Node.js](https://nodejs.org/) v18 or newer
+- A modern browser (Chrome, Firefox, Edge, Safari)
 
-### Running Locally
+### 1. Install dependencies
 
-**Option 1 — VS Code Live Server (recommended)**
-1. Install the [Live Server extension](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer) in VS Code.
-2. Right-click `index.html` → **Open with Live Server**.
-3. The app opens at `http://127.0.0.1:5500`.
-
-**Option 2 — Python simple server**
 ```bash
-# Python 3
-cd tribunal_notice_board
-python -m http.server 8080
-# Visit http://localhost:8080
+cd JUDICIARY/backend
+npm install
 ```
 
-**Option 3 — Node.js serve**
+### 2. Add the database file
+
+Place the `database.db` file inside `JUDICIARY/backend/`. If you don't have one yet, the backend will create a fresh database automatically on first run using `schema.sql` (tribunals are seeded, but you will need to insert at least one admin user manually).
+
+### 3. Start the backend
+
 ```bash
-npx serve .
-# Visit the URL printed in the terminal
+cd JUDICIARY/backend
+npm start
+# or for auto-reload during development:
+npm run dev
 ```
 
-### Login
+The API will be available at `http://localhost:3000`.
 
-On the login screen, enter your **User ID** and **password** as assigned by your tribunal administrator. See [`schema.md`](schema.md) for how user accounts are created in the database.
+### 4. Open the frontend
 
-> **Development note:** The current codebase uses in-memory JavaScript data. Once the backend API is wired up, the login screen will POST credentials to `/api/login` and receive a session token.
+Open `JUDICIARY/index.html` directly in your browser **or** use VS Code Live Server:
+
+1. Install the [Live Server extension](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer)
+2. Right-click `JUDICIARY/index.html` → **Open with Live Server**
+3. App opens at `http://127.0.0.1:5500/JUDICIARY/index.html`
+
+> The frontend expects the backend at `http://localhost:3000`. Both must be running at the same time.
+
+### 5. Create your first admin user
+
+Until the admin management panel is built, insert an admin directly into the database. Use a tool like [DB Browser for SQLite](https://sqlitebrowser.org/) or run:
+
+```bash
+cd JUDICIARY/backend
+node -e "
+const bcrypt = require('bcryptjs');
+const { db, dbPromise } = require('./db');
+dbPromise.then(() => {
+  const hash = bcrypt.hashSync('YourPassword123', 12);
+  db.prepare(\`INSERT INTO users (user_id, password_hash, full_name, email, role, tribunal_id, department)
+    VALUES (?, ?, ?, ?, 'admin', 1, 'Registry')\`)
+    .run('ADMIN-001', hash, 'Your Name', 'admin@tribunal.go.ke');
+  console.log('Admin created.');
+  process.exit(0);
+});
+"
+```
+
+---
+
+## API Reference
+
+All endpoints are prefixed with `/api`. Requests and responses use JSON. Session cookie is set on login and required for all protected routes.
+
+### Auth
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/auth/tribunals` | Public | List all tribunals (for registration dropdown) |
+| `POST` | `/api/auth/register` | Public | Register a new staff account |
+| `POST` | `/api/auth/login` | Public | Login and start a session |
+| `POST` | `/api/auth/logout` | Required | Destroy the session |
+| `GET` | `/api/auth/me` | Required | Return the current session user |
+
+### Notices
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/notices` | Required | Get notices (scoped by tribunal + role) |
+| `GET` | `/api/notices/my-submissions` | Required | Staff: get own memo submissions |
+| `POST` | `/api/notices` | Required | Admin: post notice. Staff: submit memo |
+| `PATCH` | `/api/notices/:id/status` | Admin | Approve or reject a pending memo |
+| `DELETE` | `/api/notices/:id` | Required | Staff: withdraw own pending memo |
+
+### Resources
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/resources` | Required | Get shared documents (scoped by tribunal) |
+| `POST` | `/api/resources` | Admin | Add a resource by URL |
+| `DELETE` | `/api/resources/:id` | Admin | Remove a resource |
+
+### Notifications
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/notifications` | Required | Get current user's notifications (latest 50) |
+| `PATCH` | `/api/notifications/read` | Required | Mark all notifications as read |
 
 ---
 
@@ -106,38 +194,48 @@ On the login screen, enter your **User ID** and **password** as assigned by your
 
 | Role | Description |
 |---|---|
-| **Admin** | Tribunal administrator. Can post notices, manage approvals, and upload shared resources. Sees all six tribunals. |
-| **Staff** | Regular tribunal employee. Can read notices for their tribunal (plus Public), submit memos, and download documents. |
+| **admin** | Tribunal administrator. Posts notices, manages approvals, uploads resources. Can see all tribunals. |
+| **staff** | Regular employee. Reads notices for their tribunal + public notices, submits memos, downloads documents. |
 
-Each user account belongs to exactly one tribunal and has one role.
+- All self-registrations via `register.html` are created as `staff`.
+- Admin accounts are created directly in the database.
+- Role is determined entirely by the `role` column in the `users` table — no hardcoded IDs.
 
 ---
 
 ## Tribunals
 
-The system currently supports the following six tribunals:
+| Tribunal | Code |
+|---|---|
+| Sports Tribunal | ST |
+| Employment Tribunal | ET |
+| Rent Tribunal | RNT |
+| Business Premises Rent Tribunal | BPRT |
+| Rent Restriction Tribunal | RRT |
+| Cooperative Tribunal | CT |
 
-| Tribunal |
-|---|
-| Sports Tribunal |
-| Employment Tribunal |
-| Rent Tribunal |
-| Business Premises Rent Tribunal |
-| Rent Restriction Tribunal |
-| Cooperative Tribunal |
-
-Notices can be scoped to a single tribunal or published as **Public** (visible to all staff across all tribunals).
+Notices can be scoped to a single tribunal or published as **Public** (visible to all staff).
 
 ---
 
 ## Database
 
-The application uses **SQLite** as its database. See [`schema.md`](schema.md) for:
+The app uses **SQLite** via [sql.js](https://github.com/sql-js/sql.js) (pure JavaScript — no native build tools required).
 
-- Full table definitions with all column types and constraints
-- Instructions for creating the database from scratch
-- Sample `INSERT` statements to seed initial data
-- Notes on indexes and foreign key setup
+- The database file is `JUDICIARY/backend/database.db` (git-ignored)
+- On first run, `schema.sql` is executed automatically to create all tables and seed the six tribunals
+- See [`schema.md`](schema.md) for full table definitions, column details, indexes, and sample seed data
+
+### Tables
+
+| Table | Purpose |
+|---|---|
+| `tribunals` | Master list of the six tribunals |
+| `users` | Staff and admin accounts |
+| `notices` | All notices and staff memo submissions |
+| `attachments` | Files attached to notices |
+| `resources` | Standalone shared documents |
+| `notifications` | Per-user in-app notification records |
 
 ---
 
@@ -146,19 +244,22 @@ The application uses **SQLite** as its database. See [`schema.md`](schema.md) fo
 | Layer | Technology |
 |---|---|
 | Frontend | HTML5, Vanilla CSS, Vanilla JavaScript (ES2020) |
-| Fonts | Google Fonts — Source Serif 4, IBM Plex Sans, IBM Plex Mono |
-| Database | SQLite 3 |
-| Backend *(planned)* | Python (Flask / FastAPI) or Node.js (Express) |
-| Auth *(planned)* | Session tokens or JWT |
+| Fonts | Google Fonts — Inter |
+| Backend | Node.js, Express 4 |
+| Database | SQLite 3 via sql.js |
+| Auth | express-session + session-file-store (8-hour sessions) |
+| Password hashing | bcryptjs (cost factor 12) |
 
 ---
 
 ## Roadmap
 
-- [ ] Wire up backend API for login (`POST /api/login`)
-- [ ] Replace in-memory notice data with database reads (`GET /api/notices`)
-- [ ] Persist new notices and memo submissions to the database
-- [ ] File upload endpoint for memo attachments
+- [ ] Wire dashboard.js publish form to `POST /api/notices`
+- [ ] Wire dashboard.js document upload to `POST /api/resources`
+- [ ] Wire approve / reject buttons to `PATCH /api/notices/:id/status`
+- [ ] Wire withdraw button to `DELETE /api/notices/:id`
+- [ ] Load real notifications from `GET /api/notifications`
 - [ ] Admin user-management panel (create / deactivate accounts)
 - [ ] Email notifications on memo approval / rejection
 - [ ] Audit log table for all admin actions
+- [ ] HTTPS + secure cookie for production deployment

@@ -1,43 +1,64 @@
+const API = 'http://localhost:3000/api';
+
+// Password visibility toggle
 const toggleBtn = document.getElementById('toggle-visibility');
-const pwField = document.getElementById('password');
-const eyeIcon = document.getElementById('eye-icon');
+const pwField   = document.getElementById('password');
+const eyeIcon   = document.getElementById('eye-icon');
+
 toggleBtn.addEventListener('click', () => {
-  const isHidden = pwField.type === 'password';
-  pwField.type = isHidden ? 'text' : 'password';
-  toggleBtn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
-  eyeIcon.innerHTML = isHidden
+  const hidden = pwField.type === 'password';
+  pwField.type = hidden ? 'text' : 'password';
+  toggleBtn.setAttribute('aria-label', hidden ? 'Hide password' : 'Show password');
+  eyeIcon.innerHTML = hidden
     ? '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.6 21.6 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.6 21.6 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/>'
     : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/>';
 });
 
-const form = document.getElementById('signin-form');
+// Login form
+const form   = document.getElementById('signin-form');
 const status = document.getElementById('status');
-form.addEventListener('submit', (e) => {
+
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const id = document.getElementById('staff-id').value.trim();
-  const pw = pwField.value;
-  if(!id || !pw){
+  const user_id  = document.getElementById('staff-id').value.trim();
+  const password = pwField.value;
+
+  if (!user_id || !password) {
     status.style.color = '#8A2C2C';
     status.textContent = 'Enter both your staff ID and password to continue.';
     return;
   }
+
   status.style.color = '#1E6B44';
-  status.textContent = 'Logging in...';
+  status.textContent = 'Signing in…';
 
-  // Admin is identified by Staff ID "PJ6578"
-  const isAdmin = (id === 'PJ6578');
-  
-  const mockUser = {
-    full_name: isAdmin ? 'Admin User' : (id.includes('@') ? id.split('@')[0].replace('.', ' ') : id),
-    role: isAdmin ? 'super_admin' : 'staff',
-    department_id: isAdmin ? 6 : 1 // 6 matches ICT Department (admin), 1 matches Rent Restriction Tribunal (staff)
-  };
-  localStorage.setItem('user', JSON.stringify(mockUser));
+  try {
+    const res  = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ user_id, password })
+    });
+    const data = await res.json();
 
-  // Redirect to dashboard2/dashboard.html after 1 second
-  setTimeout(() => {
-    window.location.href = '../dashboard2/dashboard.html';
-  }, 1000);
+    if (!res.ok) {
+      status.style.color = '#8A2C2C';
+      status.textContent = data.error || 'Login failed.';
+      return;
+    }
+
+    // Store user info for the dashboard greeting
+    localStorage.setItem('user', JSON.stringify(data.user));
+    status.textContent = `Welcome back, ${data.user.full_name.split(' ')[0]}! Redirecting…`;
+
+    setTimeout(() => {
+      window.location.href = '../dashboard2/dashboard.html';
+    }, 900);
+
+  } catch {
+    status.style.color = '#8A2C2C';
+    status.textContent = 'Could not reach the server. Is the backend running?';
+  }
 });
 
 document.getElementById('forgot-link').addEventListener('click', (e) => {
@@ -48,5 +69,5 @@ document.getElementById('forgot-link').addEventListener('click', (e) => {
 
 document.getElementById('disclaimer-link').addEventListener('click', (e) => {
   e.preventDefault();
-  alert('This is an internal system for authorized tribunal staff only. Unauthorized access is prohibited.');
-});
+  alert('This is an internal system for authorised tribunal staff only. Unauthorised access is prohibited.');
+});

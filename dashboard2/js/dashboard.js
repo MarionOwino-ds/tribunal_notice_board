@@ -11,92 +11,16 @@
    - Rich search + category / date / urgency filters
    ========================================================= */
 
+const API = 'http://localhost:3000/api';
+
 let CURRENT_USER = null;
 let CURRENT_DEPT_NAME = null;
 let rejectTargetId = null;
 let pubSelectedFile = null;
 
-/* ---- Mock data ---- */
-const mockDepartments = [
-  { id: 1, name: 'Rent Restriction Tribunal' },
-  { id: 2, name: 'Business Premises Rent Tribunal' },
-  { id: 3, name: 'Tax Appeals Tribunal' },
-  { id: 4, name: 'Employment & Labour Relations' },
-  { id: 5, name: "Registrar's Office" },
-  { id: 6, name: 'ICT Department' },
-  { id: 7, name: 'Finance & Accounts' },
-  { id: 8, name: 'Human Resources' }
-];
-
-let mockNotices = [
-  {
-    id: 1, ref: 'TNB/NTC/2026/001',
-    title: 'Server Maintenance Notice',
-    category: 'IT',
-    body: 'Servers will be down for scheduled maintenance at midnight on Friday 18 July 2026. Please save all your work and log out by 23:45. The outage is expected to last two hours. Apologies for any inconvenience.',
-    is_general: 1, department_name: null,
-    status: 'approved', urgent: true,
-    posted_by_name: 'ICT Department',
-    submitted_by_name: null,
-    attachment_name: null, attachment_path: null, attachment_size: null,
-    created_at: new Date().toISOString()
-  },
-  {
-    id: 2, ref: 'TNB/NTC/2026/002',
-    title: 'Quarterly Report Submission Deadline',
-    category: 'Finance',
-    body: 'All departments are required to submit their Q2 reports by 25 July 2026. Please ensure data is verified before submission. Late submissions will not be accepted.',
-    is_general: 0, department_name: 'Finance & Accounts',
-    status: 'approved', urgent: false,
-    posted_by_name: 'Finance & Accounts',
-    submitted_by_name: null,
-    attachment_name: 'Q2-Report-Template.xlsx', attachment_path: '#', attachment_size: '45 KB',
-    created_at: new Date(Date.now() - 86400000).toISOString()
-  },
-  {
-    id: 3, ref: 'TNB/NTC/2026/003',
-    title: 'Public Holiday — No Sittings 21 July',
-    category: 'General',
-    body: 'In observance of the gazetted public holiday, no sittings will be held across all tribunals on 21 July 2026. Matters scheduled for that date will be mentioned on 22 July.',
-    is_general: 1, department_name: null,
-    status: 'approved', urgent: true,
-    posted_by_name: 'Chief Registrar',
-    submitted_by_name: null,
-    attachment_name: null, attachment_path: null, attachment_size: null,
-    created_at: new Date(Date.now() - 2 * 86400000).toISOString()
-  },
-  {
-    id: 4, ref: 'TNB/NTC/2026/004',
-    title: 'Request to Adjust Friday Sitting Hours',
-    category: 'Operations',
-    body: 'I would like to propose that Friday sittings begin at 10:00 AM instead of 8:30 AM to allow staff travelling from Thika Road adequate time to arrive. This has been a recurring issue for several team members.',
-    is_general: 0, department_name: 'Employment & Labour Relations',
-    status: 'pending', urgent: false,
-    posted_by_name: null,
-    submitted_by_name: 'Jane Otieno',
-    attachment_name: null, attachment_path: null, attachment_size: null,
-    created_at: new Date(Date.now() - 3600000).toISOString()
-  }
-];
-
-let mockDocuments = [
-  {
-    id: 1, title: 'Holiday Schedule 2026', doc_type: 'Circular',
-    description: 'Complete list of public holidays and tribunal closure dates for 2026.',
-    is_general: 1, department_name: null,
-    file_path: '#', file_name: 'holidays-2026.pdf', file_size: 102400,
-    status: 'approved', uploaded_by_name: 'HR Team',
-    created_at: new Date().toISOString()
-  },
-  {
-    id: 2, title: 'Leave Application Form', doc_type: 'Document',
-    description: 'Standard HR leave request form for all staff.',
-    is_general: 1, department_name: null,
-    file_path: '#', file_name: 'leave-application-form.pdf', file_size: 88000,
-    status: 'approved', uploaded_by_name: 'Human Resources',
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString()
-  }
-];
+// Live data — populated from the API
+let mockNotices   = [];
+let mockDocuments = [];
 
 // Mock Google Calendar Events list
 let mockCalendarEvents = [
@@ -105,9 +29,7 @@ let mockCalendarEvents = [
   { id: 3, title: 'Official sitting: Sports Tribunal', date: '2026-07-24T08:30', details: 'Hearings for Nairobi Division appeal files' }
 ];
 
-const mockOnlineUsers = [
-  { id: 1, full_name: 'System Administrator', role: 'super_admin', department_name: 'ICT Department', logged_in_at: new Date(Date.now() - 1500000).toISOString() }
-];
+const mockOnlineUsers = [];
 
 let _notifIdCounter = 10;
 let notifications = [];
@@ -279,33 +201,32 @@ document.getElementById('urgentFilter').addEventListener('change', loadNotices);
 function getVisibleNotices() {
   let list = mockNotices.filter(n => {
     if (n.status !== 'approved') return false;
-    if (CURRENT_USER.role === 'super_admin') return true;
-    if (CURRENT_USER.role === 'dept_admin') return n.department_name === CURRENT_DEPT_NAME || n.is_general;
-    return n.department_name === CURRENT_DEPT_NAME || n.is_general;
+    return true; // backend already scopes by tribunal
   });
 
-  const q = document.getElementById('searchBox').value.toLowerCase();
-  const cat = document.getElementById('categoryFilter').value;
-  const dateVal = document.getElementById('dateFilter').value;
+  const q          = document.getElementById('searchBox').value.toLowerCase();
+  const cat        = document.getElementById('categoryFilter').value;
+  const dateVal    = document.getElementById('dateFilter').value;
   const urgentOnly = document.getElementById('urgentFilter').value === 'urgent';
 
-  if (q) list = list.filter(n => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q));
-  if (cat) list = list.filter(n => n.category === cat);
-  if (dateVal) list = list.filter(n => new Date(n.created_at).toISOString().slice(0, 10) === dateVal);
-  if (urgentOnly) list = list.filter(n => n.urgent);
+  if (q)          list = list.filter(n => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q));
+  if (cat)        list = list.filter(n => n.category === cat);
+  if (dateVal)    list = list.filter(n => (n.notice_date || n.created_at || '').slice(0, 10) === dateVal);
+  if (urgentOnly) list = list.filter(n => n.is_urgent || n.urgent);
 
   return list;
 }
 
 function noticeRowHTML(n) {
-  const urgentTag = n.urgent ? '<span class="row-pill urgent">⚠ Urgent</span>' : '';
-  const catPill = n.is_general
-    ? '<span class="row-pill general">General</span>'
-    : `<span class="row-pill dept">${escapeHtml(n.department_name || '')}</span>`;
+  const urgentTag = (n.is_urgent || n.urgent) ? '<span class="row-pill urgent">⚠ Urgent</span>' : '';
+  const catPill = n.is_public
+    ? '<span class="row-pill general">Public</span>'
+    : `<span class="row-pill dept">${escapeHtml(n.tribunal_name || '')}</span>`;
   const attachIcon = n.attachment_name ? '<span class="row-attach-icon" title="Has attachment">📎</span>' : '';
   const byline = n.posted_by_name
     ? escapeHtml(n.posted_by_name)
     : (n.submitted_by_name ? escapeHtml(n.submitted_by_name) : '');
+  const dateDisplay = n.notice_date || n.created_at;
   return `
     <div class="notice-row${n.urgent ? ' notice-row-urgent' : ''}" onclick="openDetail(${n.id})" role="button" tabindex="0">
       <div class="notice-row-left">
@@ -318,20 +239,28 @@ function noticeRowHTML(n) {
       </div>
       <div class="notice-row-right">
         ${attachIcon}
-        <span class="notice-row-date">${timeAgo(n.created_at)}</span>
+        <span class="notice-row-date">${timeAgo(dateDisplay)}</span>
         <span class="notice-row-chevron">›</span>
       </div>
     </div>`;
 }
 
-function loadNotices() {
-  const list = getVisibleNotices();
-  const pinned = list.filter(n => n.urgent);
-  const regular = list.filter(n => !n.urgent);
+async function loadNotices() {
+  try {
+    const res = await fetch(`${API}/notices`, { credentials: 'include' });
+    if (res.status === 401) { window.location.href = '../JUDICIARY/index.html'; return; }
+    mockNotices = await res.json();
+  } catch {
+    showToast('Could not load notices. Is the backend running?', 'error');
+  }
 
-  // Populate category filter options
+  const list   = getVisibleNotices();
+  const pinned = list.filter(n => n.is_urgent || n.urgent);
+  const regular = list.filter(n => !n.is_urgent && !n.urgent);
+
+  // Populate category filter
   const catSelect = document.getElementById('categoryFilter');
-  const existing = new Set([...catSelect.options].map(o => o.value));
+  const existing  = new Set([...catSelect.options].map(o => o.value));
   [...new Set(mockNotices.map(n => n.category).filter(Boolean))].forEach(c => {
     if (!existing.has(c)) {
       const opt = document.createElement('option');
@@ -341,9 +270,9 @@ function loadNotices() {
   });
 
   const pinnedSection = document.getElementById('pinnedSection');
-  const pinnedList = document.getElementById('pinnedList');
-  const allLabel = document.getElementById('allNoticesLabel');
-  const noticeList = document.getElementById('noticeList');
+  const pinnedList    = document.getElementById('pinnedList');
+  const allLabel      = document.getElementById('allNoticesLabel');
+  const noticeList    = document.getElementById('noticeList');
 
   if (pinned.length) {
     pinnedSection.style.display = '';

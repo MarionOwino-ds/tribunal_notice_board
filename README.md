@@ -61,6 +61,7 @@ tribunal_notice_board/
 > **Planned additions** (see [Roadmap](#roadmap)):
 > - `backend/` — Python/Node.js REST API
 > - `backend/database.db` — SQLite database file
+ 
 > - `backend/schema.sql` — Database creation script
 
 ---

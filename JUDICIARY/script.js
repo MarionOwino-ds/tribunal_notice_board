@@ -22,7 +22,22 @@ form.addEventListener('submit', (e) => {
     return;
   }
   status.style.color = '#1E6B44';
-  status.textContent = 'Checking credentials — connect this form to your authentication system.';
+  status.textContent = 'Logging in...';
+
+  // Admin is identified by Staff ID "PJ6578"
+  const isAdmin = (id === 'PJ6578');
+  
+  const mockUser = {
+    full_name: isAdmin ? 'Admin User' : (id.includes('@') ? id.split('@')[0].replace('.', ' ') : id),
+    role: isAdmin ? 'super_admin' : 'staff',
+    department_id: isAdmin ? 6 : 1 // 6 matches ICT Department (admin), 1 matches Rent Restriction Tribunal (staff)
+  };
+  localStorage.setItem('user', JSON.stringify(mockUser));
+
+  // Redirect to dashboard2/dashboard.html after 1 second
+  setTimeout(() => {
+    window.location.href = '../dashboard2/dashboard.html';
+  }, 1000);
 });
 
 document.getElementById('forgot-link').addEventListener('click', (e) => {
@@ -34,9 +49,4 @@ document.getElementById('forgot-link').addEventListener('click', (e) => {
 document.getElementById('disclaimer-link').addEventListener('click', (e) => {
   e.preventDefault();
   alert('This is an internal system for authorized tribunal staff only. Unauthorized access is prohibited.');
-});
-
-document.getElementById('secondary-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  alert('This would open the Leave & Training Calendar.');
-});
+});

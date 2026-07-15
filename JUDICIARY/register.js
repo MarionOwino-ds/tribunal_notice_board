@@ -35,5 +35,10 @@ form.addEventListener('submit', (e) => {
   }
 
   status.style.color = '#1E6B44';
-  status.textContent = 'Account details captured — connect this form to your backend to complete registration.';
+  status.textContent = 'Account created successfully! Redirecting to login...';
+
+  // Redirect to index.html (login page) after 2 seconds
+  setTimeout(() => {
+    window.location.href = 'index.html';
+  }, 2000);
 });

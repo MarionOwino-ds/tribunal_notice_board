@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Tribunals Memos &amp; Notices</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="seal"><img src="/logo.png" alt="Judiciary Logo" style="max-width: 180px; height: auto;"></div>
+      <div><b>Tribunals</b><span>Memos &amp; Notices</span></div>
+    </div>
+    <nav>
+      <button class="nav-link active" data-view="feed">📋 My Notices</button>
+      <button class="nav-link" data-view="post">📝 Post a Notice</button>
+      <button class="nav-link" data-view="documents">📁 Documents</button>
+      <button class="nav-link" data-view="upload-doc">⬆️ Upload Document</button>
+      <button class="nav-link" id="approvalsLink" data-view="approvals" style="display:none;">✅ Approvals</button>
+      <button class="nav-link" id="usersLink" data-view="users" style="display:none;">👥 All Users</button>
+      <button id="logoutBtn">🚪 Log out</button>
+    </nav>
+    <div class="sidebar-user">
+      <b id="sbUserName">—</b>
+      <span id="sbUserDept">—</span>
+    </div>
+    
+    <div class="sidebar-online" id="sidebarOnline">
+      <div class="online-header">🟢 Online Users</div>
+      <div id="onlineUsersList" class="online-list">
+        <div class="online-empty">Loading…</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="welcomeTitle">Welcome back</h1>
+        <p id="welcomeSub">Loading your dashboard…</p>
+      </div>
+      <div id="deptSwitcherWrap" style="display:none;">
+        <select id="deptSwitcher" class="field-input" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;">
+          <option value="">All departments</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- FEED VIEW -->
+    <section id="view-feed">
+      <div class="toolbar" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <input type="text" id="searchBox" placeholder="Search notices by title or keyword…" style="flex: 1; min-width: 200px;">
+        <select id="categoryFilter"><option value="">All categories</option></select>
+        <input type="date" id="dateFilter" title="Filter by Date" style="padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit; color: var(--ink-700);">
+      </div>
+      <div class="notice-list" id="noticeList"></div>
+    </section>
+
+    <!-- POST VIEW -->
+    <section id="view-post" style="display:none; max-width: 640px;">
+      <div class="notice-card">
+        <h3 style="margin-top:0;">Post a new notice or memo</h3>
+        <p class="notice-meta" id="postHint">Your post will appear once your department admin approves it.</p>
+        <form id="postForm">
+          <div class="field">
+            <label>Title</label>
+            <div class="field-input"><input type="text" id="p_title" required placeholder="e.g. Workshop schedule for July"></div>
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <div class="field-input"><input type="text" id="p_category" placeholder="e.g. Training, Leave, Circular"></div>
+          </div>
+          <div class="field">
+            <label>Details</label>
+            <textarea class="field-textarea" id="p_body" required placeholder="Write the notice details here…"></textarea>
+          </div>
+          <div class="field">
+            <label>Attachment (optional)</label>
+            <div class="field-input"><input type="file" id="p_file" accept="*/*" style="padding:10px 14px;"></div>
+            <div style="font-size:12px; color:var(--ink-600); margin-top:5px;">Any file type supported (PDF, Word, Excel, images, etc.) — max 50 MB</div>
+          </div>
+          <div class="check-row" id="generalCheckWrap" style="display:none;">
+            <input type="checkbox" id="p_general"> <label for="p_general" style="margin:0;">Post as a general notice (visible to every department)</label>
+          </div>
+          <button type="submit" class="btn-primary" id="postBtn">Submit Notice</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- APPROVALS VIEW -->
+    <section id="view-approvals" style="display:none;">
+      <div class="notice-list" id="approvalsList"></div>
+    </section>
+
+    <!-- USERS VIEW -->
+    <section id="view-users" style="display:none;">
+      <div id="usersTableWrap"></div>
+    </section>
+
+    <!-- DOCUMENTS LIST VIEW -->
+    <section id="view-documents" style="display:none;">
+      <div class="topbar" style="margin-bottom:16px;">
+        <div><h2 style="margin:0;font-size:20px;color:var(--green-950);">📁 Department Documents</h2><p style="margin:4px 0 0;color:var(--ink-600);font-size:13px;">Browse uploaded announcements, memos, invoices and reports.</p></div>
+      </div>
+      <div class="toolbar" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;">
+        <input type="text" id="docSearch" placeholder="Search documents…" style="flex:1; min-width:180px;">
+        <select id="docTypeFilter">
+          <option value="">All types</option>
+          <option value="Announcement">📢 Announcement</option>
+          <option value="Memo">📄 Memo</option>
+          <option value="Invoice">🧾 Invoice</option>
+          <option value="Circular">📌 Circular</option>
+          <option value="Report">📊 Report</option>
+          <option value="Document">📁 Document</option>
+        </select>
+        <input type="date" id="docDateFilter" title="Filter by date" style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;outline:none;font-family:inherit;color:var(--ink-700);">
+      </div>
+      <div class="notice-list" id="documentList"></div>
+    </section>
+
+    <!-- UPLOAD DOCUMENT VIEW -->
+    <section id="view-upload-doc" style="display:none; max-width:640px;">
+      <div class="notice-card">
+        <h3 style="margin-top:0;">Upload a Document</h3>
+        <p class="notice-meta" id="docUploadHint">Your document will be available once approved by your department admin.</p>
+        <form id="docUploadForm">
+          <div class="field">
+            <label>Document Title</label>
+            <div class="field-input"><input type="text" id="d_title" required placeholder="e.g. June Payroll Invoice"></div>
+          </div>
+          <div class="field">
+            <label>Document Type</label>
+            <div class="field-input">
+              <select id="d_type" required>
+                <option value="">Select type…</option>
+                <option value="Announcement">📢 Announcement</option>
+                <option value="Memo">📄 Memo</option>
+                <option value="Invoice">🧾 Invoice</option>
+                <option value="Circular">📌 Circular</option>
+                <option value="Report">📊 Report</option>
+                <option value="Document">📁 Document</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Description (optional)</label>
+            <textarea class="field-textarea" id="d_description" placeholder="Briefly describe what this document contains…"></textarea>
+          </div>
+          <div class="field">
+            <label>File <span style="color:var(--danger);">*</span></label>
+            <div class="field-input"><input type="file" id="d_file" accept="*/*" required style="padding:10px 14px;"></div>
+            <div style="font-size:12px;color:var(--ink-600);margin-top:5px;">PDF, Word, Excel, images, ZIP etc. — max 50 MB</div>
+          </div>
+          <div class="check-row" id="docGeneralWrap" style="display:none;">
+            <input type="checkbox" id="d_general"> <label for="d_general" style="margin:0;">Share with all departments (general document)</label>
+          </div>
+          <button type="submit" class="btn-primary" id="docUploadBtn">Upload Document</button>
+        </form>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

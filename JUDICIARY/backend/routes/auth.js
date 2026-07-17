@@ -1,6 +1,6 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const { db } = require('../db');
+const bcrypt  = require('bcryptjs');
+const db      = require('../db');
 
 const router = express.Router();
 
@@ -11,7 +11,12 @@ const VALID_DEPARTMENTS = [
 
 // GET /api/auth/tribunals — public, used to populate the register form dropdown
 router.get('/tribunals', (req, res) => {
-  res.json(db.prepare('SELECT id, name FROM tribunals ORDER BY id').all());
+  try {
+    const rows = db.prepare('SELECT id, name, color_hex FROM tribunals ORDER BY id').all();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Could not fetch tribunals.' });
+  }
 });
 
 // POST /api/auth/register
@@ -20,6 +25,10 @@ router.post('/register', (req, res) => {
 
   if (!full_name || !user_id || !email || !department || !tribunal_id || !password) {
     return res.status(400).json({ error: 'All fields are required.' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
   }
 
   if (!VALID_DEPARTMENTS.includes(department)) {
@@ -65,12 +74,12 @@ router.post('/login', (req, res) => {
 
   // Store safe user info in session
   req.session.user = {
-    id: user.id,
-    user_id: user.user_id,
-    full_name: user.full_name,
-    role: user.role,
+    id:          user.id,
+    user_id:     user.user_id,
+    full_name:   user.full_name,
+    role:        user.role,
     tribunal_id: user.tribunal_id,
-    department: user.department
+    department:  user.department
   };
 
   res.json({ message: 'Login successful.', user: req.session.user });

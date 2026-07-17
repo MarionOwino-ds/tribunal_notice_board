@@ -1,5 +1,5 @@
 const express = require('express');
-const { db } = require('../db');
+const db      = require('../db');
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ function requireAdmin(req, res, next) {
 // Generate next ref number: INT/NTC/YYYY/NNN
 function generateRef() {
   const year = new Date().getFullYear();
-  const last = db.prepare(
+  const last  = db.prepare(
     "SELECT ref FROM notices WHERE ref LIKE ? ORDER BY id DESC LIMIT 1"
   ).get(`INT/NTC/${year}/%`);
 
@@ -31,7 +31,7 @@ function generateRef() {
 }
 
 // GET /api/notices
-// Admin: can filter by tribunal_id query param, sees all statuses
+// Admin: can filter by tribunal_id / status query params, sees all statuses
 // Staff: sees approved notices for their tribunal + public notices
 router.get('/', requireAuth, (req, res) => {
   const { user } = req.session;
@@ -92,18 +92,18 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'title, body and notice_date are required.' });
   }
 
-  const ref = generateRef();
+  const ref           = generateRef();
   const scopedTribunal = is_public ? null : (tribunal_id || user.tribunal_id);
-  const status = user.role === 'admin' ? 'approved' : 'pending';
-  const posted_by = user.role === 'admin' ? user.id : null;
-  const submitted_by = user.role === 'staff' ? user.id : null;
+  const status        = user.role === 'admin' ? 'approved' : 'pending';
+  const posted_by     = user.role === 'admin' ? user.id : null;
+  const submitted_by  = user.role === 'staff'  ? user.id : null;
 
   const result = db.prepare(`
     INSERT INTO notices (ref, tribunal_id, is_public, title, body, notice_date, is_urgent, status, posted_by, submitted_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(ref, scopedTribunal, is_public ? 1 : 0, title, body, notice_date, is_urgent ? 1 : 0, status, posted_by, submitted_by);
 
-  // Notify all users in the tribunal (or all users if public) when admin posts
+  // Notify all active users in the tribunal (or all if public) when admin posts
   if (user.role === 'admin') {
     const targets = is_public
       ? db.prepare('SELECT id FROM users WHERE is_active = 1').all()
@@ -113,6 +113,7 @@ router.post('/', requireAuth, (req, res) => {
       INSERT INTO notifications (user_id, title, meta, notice_ref)
       VALUES (?, ?, ?, ?)
     `);
+
     const notifyMany = db.transaction((users) => {
       for (const u of users) {
         insertNotif.run(u.id, title, notice_date, ref);
@@ -137,14 +138,14 @@ router.patch('/:id/status', requireAdmin, (req, res) => {
   if (notice.status !== 'pending') return res.status(409).json({ error: 'Notice is not pending.' });
 
   db.prepare(`
-    UPDATE notices SET status = ?, reject_reason = ?, updated_at = datetime('now') WHERE id = ?
-  `).run(status, reject_reason || null, req.params.id);
+    UPDATE notices SET status = ?, reject_reason = ?, posted_by = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(status, reject_reason || null, req.session.user.id, req.params.id);
 
   // Notify the submitter
   if (notice.submitted_by) {
     const notifTitle = status === 'approved'
-      ? `✓ Your memo was approved`
-      : `✗ Your memo was rejected`;
+      ? `✓ Your memo "${notice.title}" was approved`
+      : `✗ Your memo "${notice.title}" was rejected`;
     db.prepare(`
       INSERT INTO notifications (user_id, title, meta, notice_ref)
       VALUES (?, ?, ?, ?)
@@ -154,12 +155,22 @@ router.patch('/:id/status', requireAdmin, (req, res) => {
   res.json({ message: `Notice ${status}.` });
 });
 
-// DELETE /api/notices/:id — staff withdraws their own pending memo
+// DELETE /api/notices/:id
+// Admin: can delete any notice
+// Staff: can only withdraw their own pending memo
 router.delete('/:id', requireAuth, (req, res) => {
+  const { user } = req.session;
   const notice = db.prepare('SELECT * FROM notices WHERE id = ?').get(req.params.id);
 
   if (!notice) return res.status(404).json({ error: 'Notice not found.' });
-  if (notice.submitted_by !== req.session.user.id) {
+
+  if (user.role === 'admin') {
+    db.prepare('DELETE FROM notices WHERE id = ?').run(req.params.id);
+    return res.json({ message: 'Notice deleted.' });
+  }
+
+  // Staff
+  if (notice.submitted_by !== user.id) {
     return res.status(403).json({ error: 'You can only withdraw your own submissions.' });
   }
   if (notice.status !== 'pending') {

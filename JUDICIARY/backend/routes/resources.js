@@ -1,5 +1,5 @@
 const express = require('express');
-const { db } = require('../db');
+const db      = require('../db');
 
 const router = express.Router();
 
@@ -48,20 +48,21 @@ router.get('/', requireAuth, (req, res) => {
   res.json(resources);
 });
 
-// POST /api/resources — admin only
-router.post('/', requireAdmin, (req, res) => {
+// POST /api/resources — any authenticated user can submit; admin publishes immediately
+router.post('/', requireAuth, (req, res) => {
+  const { user } = req.session;
   const { name, description, file_url, file_size, tribunal_id, is_public = 0, resource_date } = req.body;
 
   if (!name || !file_url || !resource_date) {
     return res.status(400).json({ error: 'name, file_url and resource_date are required.' });
   }
 
-  const scopedTribunal = is_public ? null : (tribunal_id || req.session.user.tribunal_id);
+  const scopedTribunal = is_public ? null : (tribunal_id || user.tribunal_id);
 
   const result = db.prepare(`
     INSERT INTO resources (name, description, file_url, file_size, tribunal_id, is_public, uploaded_by, resource_date)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(name, description || null, file_url, file_size || null, scopedTribunal, is_public ? 1 : 0, req.session.user.id, resource_date);
+  `).run(name, description || null, file_url, file_size || null, scopedTribunal, is_public ? 1 : 0, user.id, resource_date);
 
   res.status(201).json({ message: 'Resource added.', id: result.lastInsertRowid });
 });

@@ -90,9 +90,22 @@ CREATE INDEX IF NOT EXISTS idx_resources_tribunal   ON resources(tribunal_id);
 
 -- Seed tribunals
 INSERT OR IGNORE INTO tribunals (name, short_code, color_hex) VALUES
-  ('Sports Tribunal',                 'ST',   '#123423'),
+  ('Sports Tribunal',                 'ST',   '#1E6B44'),
   ('Employment Tribunal',             'ET',   '#2C5F7C'),
   ('Rent Tribunal',                   'RNT',  '#8C7220'),
   ('Business Premises Rent Tribunal', 'BPRT', '#4A5A3E'),
   ('Rent Restriction Tribunal',       'RRT',  '#7A2E2E'),
   ('Cooperative Tribunal',            'CT',   '#64615A');
+
+-- Seed default admin account (password: Admin@1234)
+-- Hash generated with bcryptjs rounds=12
+INSERT OR IGNORE INTO users (user_id, password_hash, full_name, email, role, tribunal_id, department)
+VALUES (
+  'ADMIN001',
+  '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCgK8x5O.UO3..oFKhHHlvS',
+  'System Administrator',
+  'admin@tribunal.go.ke',
+  'admin',
+  1,
+  'IT Services'
+);

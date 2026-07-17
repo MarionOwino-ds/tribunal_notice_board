@@ -97,15 +97,6 @@ INSERT OR IGNORE INTO tribunals (name, short_code, color_hex) VALUES
   ('Rent Restriction Tribunal',       'RRT',  '#7A2E2E'),
   ('Cooperative Tribunal',            'CT',   '#64615A');
 
--- Seed default admin account (password: Admin@1234)
--- Hash generated with bcryptjs rounds=12
-INSERT OR IGNORE INTO users (user_id, password_hash, full_name, email, role, tribunal_id, department)
-VALUES (
-  'ADMIN001',
-  '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCgK8x5O.UO3..oFKhHHlvS',
-  'System Administrator',
-  'admin@tribunal.go.ke',
-  'admin',
-  1,
-  'IT Services'
-);
+-- NOTE: Admin account is seeded by running: node setup.js
+-- This is intentionally not in SQL because bcrypt hashes must be generated at runtime.
+

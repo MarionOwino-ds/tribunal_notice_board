@@ -29,6 +29,8 @@ form.addEventListener('submit', async (e) => {
     return;
   }
 
+  const btn = form.querySelector('button[type=submit]');
+  btn.disabled = true;
   status.style.color = '#1E6B44';
   status.textContent = 'Signing in…';
 
@@ -44,27 +46,36 @@ form.addEventListener('submit', async (e) => {
     if (!res.ok) {
       status.style.color = '#8A2C2C';
       status.textContent = data.error || 'Login failed.';
+      btn.disabled = false;
       return;
     }
 
-    // Store user info for the dashboard greeting
+    // Store user info for the dashboard
     localStorage.setItem('user', JSON.stringify(data.user));
     status.textContent = `Welcome back, ${data.user.full_name.split(' ')[0]}! Redirecting…`;
 
+    // Redirect to dashboard — works when served from Express, Live Server, or direct file open
     setTimeout(() => {
-      window.location.href = '../dashboard2/dashboard.html';
-    }, 900);
+      if (window.location.protocol === 'file:') {
+        window.location.href = '../dashboard2/dashboard.html';
+      } else if (window.location.pathname.startsWith('/JUDICIARY/')) {
+        window.location.href = '/dashboard2/dashboard.html';
+      } else {
+        window.location.href = '/dashboard.html';
+      }
+    }, 800);
 
   } catch {
     status.style.color = '#8A2C2C';
     status.textContent = 'Could not reach the server. Is the backend running?';
+    btn.disabled = false;
   }
 });
 
 document.getElementById('forgot-link').addEventListener('click', (e) => {
   e.preventDefault();
   status.style.color = '#8A2C2C';
-  status.textContent = 'Password resets are handled by the Registry IT Desk.';
+  status.textContent = 'Password resets are handled by the Registry IT Desk. Contact it-support@tribunal.go.ke';
 });
 
 document.getElementById('disclaimer-link').addEventListener('click', (e) => {

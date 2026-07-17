@@ -1,38 +1,23 @@
 /* =========================================================
-   dashboard.js  –  dashboard2 full-featured JS
-   Features:
-   - Full-page notice reader
-   - Print (notice only / with attachment)
-   - Pinned / urgent notices
-   - Toast notifications + notification panel
-   - Merged Post / Submit memo flow
-   - Google calendar sitting, holiday & event integration
-   - Approve / reject memos (admin)
-   - Rich search + category / date / urgency filters
+   dashboard.js  –  Tribunal Notice Board  — Full API-wired version
    ========================================================= */
 
 const API = 'http://localhost:3000/api';
 
-let CURRENT_USER = null;
-let CURRENT_DEPT_NAME = null;
+let CURRENT_USER   = null;
 let rejectTargetId = null;
 let pubSelectedFile = null;
 
-// Live data — populated from the API
+// Live data from API
 let mockNotices   = [];
 let mockDocuments = [];
 
-// Mock Google Calendar Events list
-let mockCalendarEvents = [
-  { id: 1, title: 'Panel B sitting venue maintenance', date: '2026-07-20T10:00', details: 'Remodelling session for sitting chamber 4' },
-  { id: 2, title: 'Staff training: E-filing tools', date: '2026-07-22T09:00', details: 'Mandatory half-day refresher on workflow and application software updates' },
-  { id: 3, title: 'Official sitting: Sports Tribunal', date: '2026-07-24T08:30', details: 'Hearings for Nairobi Division appeal files' }
+// Calendar events (local state — no dedicated API endpoint)
+let calendarEvents = [
+  { id: 1, title: 'Panel B sitting venue maintenance',  date: '2026-07-20T10:00', details: 'Remodelling session for sitting chamber 4' },
+  { id: 2, title: 'Staff training: E-filing tools',     date: '2026-07-22T09:00', details: 'Mandatory half-day refresher on workflow' },
+  { id: 3, title: 'Official sitting: Sports Tribunal',  date: '2026-07-24T08:30', details: 'Hearings for Nairobi Division appeal files' }
 ];
-
-const mockOnlineUsers = [];
-
-let _notifIdCounter = 10;
-let notifications = [];
 
 /* =========================================================
    VIEWS
@@ -44,21 +29,32 @@ function showView(name) {
     const el = document.getElementById('view-' + v);
     if (el) el.style.display = v === name ? '' : 'none';
   });
-  document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-  if (name === 'feed') loadNotices();
+  document.querySelectorAll('.nav-link').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === name));
+
+  if (name === 'feed')      loadNotices();
   if (name === 'approvals') loadApprovals();
-  if (name === 'users') loadUsers();
+  if (name === 'users')     loadUsers();
   if (name === 'documents') loadDocuments();
-  if (name === 'calendar') loadCalendarEvents();
+  if (name === 'calendar')  loadCalendarEvents();
 }
 
 document.querySelectorAll('.nav-link').forEach(btn => {
   btn.addEventListener('click', () => showView(btn.dataset.view));
 });
 
-document.getElementById('logoutBtn').addEventListener('click', () => {
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try {
+    await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' });
+  } catch (_) {}
   localStorage.removeItem('user');
-  window.location.href = '../JUDICIARY/index.html';
+  if (window.location.protocol === 'file:') {
+    window.location.href = '../JUDICIARY/index.html';
+  } else if (window.location.pathname.startsWith('/dashboard2/')) {
+    window.location.href = '/JUDICIARY/index.html';
+  } else {
+    window.location.href = '/index.html';
+  }
 });
 
 /* =========================================================
@@ -71,27 +67,31 @@ function escapeHtml(str) {
 }
 
 function timeAgo(dateStr) {
-  const d = new Date(dateStr);
+  if (!dateStr) return '';
+  const d      = new Date(dateStr);
   const diffMs = Date.now() - d.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'just now';
+  const mins   = Math.floor(diffMs / 60000);
+  if (mins < 1)  return 'just now';
   if (mins < 60) return mins + 'm ago';
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + 'h ago';
+  if (hrs < 24)  return hrs + 'h ago';
   const days = Math.floor(hrs / 24);
-  if (days < 7) return days + 'd ago';
+  if (days < 7)  return days + 'd ago';
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function fmtDate(dateStr) {
+  if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 function formatFileSize(bytes) {
   if (!bytes) return '';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  const n = Number(bytes);
+  if (isNaN(n)) return bytes;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 function docTypeIcon(type) {
@@ -104,59 +104,67 @@ function docTypeIcon(type) {
    ========================================================= */
 function showToast(msg, type = '') {
   const container = document.getElementById('toastContainer');
-  const toast = document.createElement('div');
+  const toast     = document.createElement('div');
   toast.className = 'toast' + (type ? ' toast-' + type : '');
   toast.textContent = msg;
   container.appendChild(toast);
   setTimeout(() => toast.classList.add('toast-show'), 10);
-  setTimeout(() => { toast.classList.remove('toast-show'); setTimeout(() => toast.remove(), 300); }, 3500);
+  setTimeout(() => {
+    toast.classList.remove('toast-show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3500);
 }
 
 /* =========================================================
-   NOTIFICATION PANEL
+   NOTIFICATION PANEL  (real API)
    ========================================================= */
-function addNotif(title, meta) {
-  notifications.unshift({ id: _notifIdCounter++, title, meta, read: false });
-  renderNotifList();
-  updateNotifDot();
-  showToast(title);
+let _notifData = [];
+
+async function loadNotifications() {
+  try {
+    const res = await fetch(`${API}/notifications`, { credentials: 'include' });
+    if (res.ok) {
+      _notifData = await res.json();
+      renderNotifList();
+      updateNotifDot();
+    }
+  } catch (_) {}
 }
 
 function renderNotifList() {
   const el = document.getElementById('notifList');
-  if (!notifications.length) {
+  if (!_notifData.length) {
     el.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
     return;
   }
-  el.innerHTML = notifications.map(n => `
-    <div class="notif-item${n.read ? '' : ' unread'}" onclick="markNotifRead(${n.id})">
+  el.innerHTML = _notifData.map(n => `
+    <div class="notif-item${n.is_read ? '' : ' unread'}">
       <div class="notif-title">${escapeHtml(n.title)}</div>
-      <div class="notif-meta">${escapeHtml(n.meta)}</div>
+      <div class="notif-meta">${escapeHtml(n.meta || n.notice_ref || '')}${n.created_at ? ' · ' + timeAgo(n.created_at) : ''}</div>
     </div>`).join('');
-}
-
-function markNotifRead(id) {
-  const n = notifications.find(n => n.id === id);
-  if (n) n.read = true;
-  renderNotifList();
-  updateNotifDot();
 }
 
 function updateNotifDot() {
   const dot = document.getElementById('notifDot');
-  dot.style.display = notifications.some(n => !n.read) ? '' : 'none';
+  const hasUnread = _notifData.some(n => !n.is_read);
+  dot.style.display = hasUnread ? '' : 'none';
 }
 
-function toggleNotifPanel() {
-  const panel = document.getElementById('notifPanel');
+async function toggleNotifPanel() {
+  const panel    = document.getElementById('notifPanel');
   const backdrop = document.getElementById('notifBackdrop');
-  const isOpen = panel.classList.contains('open');
+  const isOpen   = panel.classList.contains('open');
   panel.classList.toggle('open');
   backdrop.classList.toggle('open');
+
   if (!isOpen) {
-    notifications.forEach(n => n.read = true);
-    renderNotifList();
-    updateNotifDot();
+    // Mark all read on open
+    try {
+      await fetch(`${API}/notifications/read`, { method: 'PATCH', credentials: 'include' });
+      _notifData.forEach(n => n.is_read = 1);
+      renderNotifList();
+      updateNotifDot();
+    } catch (_) {}
   }
 }
 
@@ -166,19 +174,16 @@ function closeNotifPanel() {
 }
 
 /* =========================================================
-   ONLINE USERS
+   ONLINE USERS (sidebar)
    ========================================================= */
 function loadOnlineUsers() {
-  const users = mockOnlineUsers;
+  // Show current user as online
   const list = document.getElementById('onlineUsersList');
-  if (!users.length) { list.innerHTML = '<div class="online-empty">No users online.</div>'; return; }
-  list.innerHTML = users.map(u => {
-    const diffMs = Date.now() - new Date(u.logged_in_at).getTime();
-    const mins = Math.floor(diffMs / 60000);
-    let dur = mins < 1 ? 'just now' : mins < 60 ? mins + 'm' : Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
-    const badge = u.role === 'super_admin' ? ' (Admin)' : u.role === 'dept_admin' ? ' (Dept Admin)' : '';
-    return `<div class="online-item"><b>${escapeHtml(u.full_name)}${badge}</b><span>${escapeHtml(u.department_name || 'System')} · <span class="online-time">${dur}</span></span></div>`;
-  }).join('');
+  if (CURRENT_USER) {
+    list.innerHTML = `<div class="online-item"><b>${escapeHtml(CURRENT_USER.full_name)}</b><span>${escapeHtml(CURRENT_USER.department)} · just now</span></div>`;
+  } else {
+    list.innerHTML = '<div class="online-empty">No users online.</div>';
+  }
 }
 
 /* =========================================================
@@ -191,18 +196,15 @@ function updatePendingBadge() {
 }
 
 /* =========================================================
-   NOTICE FEED
+   NOTICE FEED  (real API)
    ========================================================= */
-document.getElementById('searchBox').addEventListener('input', loadNotices);
-document.getElementById('categoryFilter').addEventListener('change', loadNotices);
-document.getElementById('dateFilter').addEventListener('change', loadNotices);
-document.getElementById('urgentFilter').addEventListener('change', loadNotices);
+document.getElementById('searchBox').addEventListener('input', renderFeed);
+document.getElementById('categoryFilter').addEventListener('change', renderFeed);
+document.getElementById('dateFilter').addEventListener('change', renderFeed);
+document.getElementById('urgentFilter').addEventListener('change', renderFeed);
 
 function getVisibleNotices() {
-  let list = mockNotices.filter(n => {
-    if (n.status !== 'approved') return false;
-    return true; // backend already scopes by tribunal
-  });
+  let list = mockNotices.filter(n => n.status === 'approved');
 
   const q          = document.getElementById('searchBox').value.toLowerCase();
   const cat        = document.getElementById('categoryFilter').value;
@@ -210,58 +212,47 @@ function getVisibleNotices() {
   const urgentOnly = document.getElementById('urgentFilter').value === 'urgent';
 
   if (q)          list = list.filter(n => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q));
-  if (cat)        list = list.filter(n => n.category === cat);
+  if (cat)        list = list.filter(n => n.tribunal_name === cat);
   if (dateVal)    list = list.filter(n => (n.notice_date || n.created_at || '').slice(0, 10) === dateVal);
-  if (urgentOnly) list = list.filter(n => n.is_urgent || n.urgent);
+  if (urgentOnly) list = list.filter(n => n.is_urgent);
 
   return list;
 }
 
 function noticeRowHTML(n) {
-  const urgentTag = (n.is_urgent || n.urgent) ? '<span class="row-pill urgent">⚠ Urgent</span>' : '';
+  const urgentTag = n.is_urgent
+    ? '<span class="row-pill urgent">⚠ Urgent</span>' : '';
   const catPill = n.is_public
     ? '<span class="row-pill general">Public</span>'
     : `<span class="row-pill dept">${escapeHtml(n.tribunal_name || '')}</span>`;
-  const attachIcon = n.attachment_name ? '<span class="row-attach-icon" title="Has attachment">📎</span>' : '';
-  const byline = n.posted_by_name
-    ? escapeHtml(n.posted_by_name)
-    : (n.submitted_by_name ? escapeHtml(n.submitted_by_name) : '');
+  const byline = n.posted_by_name || n.submitted_by_name || '';
   const dateDisplay = n.notice_date || n.created_at;
   return `
-    <div class="notice-row${n.urgent ? ' notice-row-urgent' : ''}" onclick="openDetail(${n.id})" role="button" tabindex="0">
+    <div class="notice-row${n.is_urgent ? ' notice-row-urgent' : ''}" onclick="openDetail(${n.id})" role="button" tabindex="0">
       <div class="notice-row-left">
         <div class="notice-row-pills">${urgentTag}${catPill}</div>
         <div class="notice-row-title">${escapeHtml(n.title)}</div>
         <div class="notice-row-meta">
           ${n.ref ? `<span class="ref-tag-sm">${escapeHtml(n.ref)}</span>` : ''}
-          ${byline ? `<span>${byline}</span>` : ''}
+          ${byline ? `<span>${escapeHtml(byline)}</span>` : ''}
         </div>
       </div>
       <div class="notice-row-right">
-        ${attachIcon}
         <span class="notice-row-date">${timeAgo(dateDisplay)}</span>
         <span class="notice-row-chevron">›</span>
       </div>
     </div>`;
 }
 
-async function loadNotices() {
-  try {
-    const res = await fetch(`${API}/notices`, { credentials: 'include' });
-    if (res.status === 401) { window.location.href = '../JUDICIARY/index.html'; return; }
-    mockNotices = await res.json();
-  } catch {
-    showToast('Could not load notices. Is the backend running?', 'error');
-  }
+function renderFeed() {
+  const list    = getVisibleNotices();
+  const pinned  = list.filter(n => n.is_urgent);
+  const regular = list.filter(n => !n.is_urgent);
 
-  const list   = getVisibleNotices();
-  const pinned = list.filter(n => n.is_urgent || n.urgent);
-  const regular = list.filter(n => !n.is_urgent && !n.urgent);
-
-  // Populate category filter
+  // Populate category filter from tribunal names
   const catSelect = document.getElementById('categoryFilter');
   const existing  = new Set([...catSelect.options].map(o => o.value));
-  [...new Set(mockNotices.map(n => n.category).filter(Boolean))].forEach(c => {
+  [...new Set(mockNotices.map(n => n.tribunal_name).filter(Boolean))].forEach(c => {
     if (!existing.has(c)) {
       const opt = document.createElement('option');
       opt.value = c; opt.textContent = c;
@@ -276,19 +267,31 @@ async function loadNotices() {
 
   if (pinned.length) {
     pinnedSection.style.display = '';
-    pinnedList.innerHTML = pinned.map(n => noticeRowHTML(n)).join('');
+    pinnedList.innerHTML = pinned.map(noticeRowHTML).join('');
   } else {
     pinnedSection.style.display = 'none';
   }
 
   allLabel.style.display = regular.length ? '' : 'none';
   noticeList.innerHTML = regular.length
-    ? regular.map(n => noticeRowHTML(n)).join('')
+    ? regular.map(noticeRowHTML).join('')
     : (pinned.length ? '' : '<div class="empty-state">No notices match your search.</div>');
 }
 
+async function loadNotices() {
+  try {
+    const res = await fetch(`${API}/notices`, { credentials: 'include' });
+    if (res.status === 401) { window.location.href = '/index.html'; return; }
+    mockNotices = await res.json();
+  } catch {
+    showToast('Could not load notices. Is the backend running?', 'error');
+  }
+  renderFeed();
+  updatePendingBadge();
+}
+
 /* =========================================================
-   NOTICE READER (full-page)
+   NOTICE READER (modal)
    ========================================================= */
 let currentDetailId = null;
 
@@ -297,82 +300,41 @@ function openDetail(id) {
   if (!n) return;
   currentDetailId = id;
 
-  document.getElementById('detailRef').textContent = n.ref || '';
-  document.getElementById('detailDate').textContent = fmtDate(n.created_at);
-  document.getElementById('detailCat').textContent = n.category || (n.is_general ? 'General' : n.department_name || '');
+  document.getElementById('detailRef').textContent   = n.ref || '';
+  document.getElementById('detailDate').textContent  = fmtDate(n.notice_date || n.created_at);
+  document.getElementById('detailCat').textContent   = n.tribunal_name || (n.is_public ? 'General' : '');
   document.getElementById('detailTitle').textContent = n.title;
-  document.getElementById('detailBody').textContent = n.body;
+  document.getElementById('detailBody').textContent  = n.body;
 
   const bylineParts = [];
-  if (n.posted_by_name) bylineParts.push('Posted by ' + n.posted_by_name);
+  if (n.posted_by_name)    bylineParts.push('Posted by '    + n.posted_by_name);
   if (n.submitted_by_name) bylineParts.push('Submitted by ' + n.submitted_by_name);
   document.getElementById('detailByline').textContent = bylineParts.join(' · ');
 
-  // Populate print block values for printing layout
-  document.getElementById('printRefPrint').textContent = n.ref || '';
-  document.getElementById('printDatePrint').textContent = fmtDate(n.created_at);
-  document.getElementById('printTribunal').textContent = n.department_name || (n.is_general ? 'All Departments' : '');
-  
-  document.getElementById('printRefBody').textContent = n.ref || '';
-  document.getElementById('printDateBody').textContent = fmtDate(n.created_at);
-  document.getElementById('printCatBody').textContent = n.category || (n.is_general ? 'General' : n.department_name || '');
-  document.getElementById('printTitleBody').textContent = n.title;
+  // Print block
+  document.getElementById('printRefPrint').textContent   = n.ref || '';
+  document.getElementById('printDatePrint').textContent  = fmtDate(n.notice_date || n.created_at);
+  document.getElementById('printTribunal').textContent   = n.tribunal_name || (n.is_public ? 'All Departments' : '');
+  document.getElementById('printRefBody').textContent    = n.ref || '';
+  document.getElementById('printDateBody').textContent   = fmtDate(n.notice_date || n.created_at);
+  document.getElementById('printCatBody').textContent    = n.tribunal_name || '';
+  document.getElementById('printTitleBody').textContent  = n.title;
   document.getElementById('printBodyContent').textContent = n.body;
-  
-  const printBylineParts = [];
-  if (n.posted_by_name) printBylineParts.push('Posted by ' + n.posted_by_name);
-  if (n.submitted_by_name) printBylineParts.push('Submitted by ' + n.submitted_by_name);
-  document.getElementById('printBylineBody').textContent = printBylineParts.join(' · ');
+  document.getElementById('printBylineBody').textContent = bylineParts.join(' · ');
 
-  // Attachment Print setup
-  const printAttachSectionPrint = document.getElementById('printAttachSectionPrint');
-  if (n.attachment_name) {
-    printAttachSectionPrint.innerHTML = `
-      <p style="font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#64615A;margin:24px 0 8px;">Attachments</p>
-      <table><thead><tr><th>File</th><th>Size</th><th>Status</th></tr></thead>
-      <tbody><tr>
-        <td>${escapeHtml(n.attachment_name)}</td>
-        <td>${n.attachment_size || '—'}</td>
-        <td>${n.attachment_path && n.attachment_path !== '#' ? 'Available for download' : 'Physical copy — contact admin'}</td>
-      </tr></tbody></table>`;
-  } else {
-    printAttachSectionPrint.innerHTML = '';
-  }
-
-  // Print menu modal toggle fields
-  const attachEl = document.getElementById('detailAttach');
-  const printAttachSection = document.getElementById('printAttachSection');
-  if (n.attachment_name) {
-    attachEl.style.display = 'flex';
-    const dlAttr = n.attachment_path && n.attachment_path !== '#'
-      ? `href="${n.attachment_path}" download="${n.attachment_name}"` : '';
-    attachEl.innerHTML = `
-      <span>📎</span>
-      <span><strong>${escapeHtml(n.attachment_name)}</strong>${n.attachment_size ? ' · ' + n.attachment_size : ''}</span>
-      ${dlAttr ? `<a ${dlAttr} class="attach-download-link">Download</a>` : ''}`;
-    printAttachSection.innerHTML = `
-      <p style="font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#64615A;margin:0 0 8px;">Attachments</p>
-      <table><thead><tr><th>File</th><th>Size</th><th>Status</th></tr></thead>
-      <tbody><tr>
-        <td>${escapeHtml(n.attachment_name)}</td>
-        <td>${n.attachment_size || '—'}</td>
-        <td>${n.attachment_path && n.attachment_path !== '#' ? 'Available for download' : 'Physical copy — contact admin'}</td>
-      </tr></tbody></table>`;
-  } else {
-    attachEl.style.display = 'none';
-    printAttachSection.innerHTML = '';
-  }
-  printAttachSection.style.display = 'none';
+  // Attachment
+  const attachEl    = document.getElementById('detailAttach');
+  attachEl.style.display = 'none';
 
   // Status banner
   const banner = document.getElementById('readerStatusBanner');
   if (n.status === 'pending') {
     banner.textContent = '⏳ This memo is pending admin approval.';
-    banner.className = 'reader-status-banner status-pending';
+    banner.className   = 'reader-status-banner status-pending';
     banner.style.display = '';
   } else if (n.status === 'rejected') {
     banner.textContent = '✕ This memo was rejected.' + (n.reject_reason ? ' Reason: ' + n.reject_reason : '');
-    banner.className = 'reader-status-banner status-rejected';
+    banner.className   = 'reader-status-banner status-rejected';
     banner.style.display = '';
   } else {
     banner.style.display = 'none';
@@ -380,13 +342,14 @@ function openDetail(id) {
 
   // Admin delete button
   const delBtn = document.getElementById('readerDeleteBtn');
-  delBtn.style.display = (CURRENT_USER.role === 'super_admin' || CURRENT_USER.role === 'dept_admin') ? '' : 'none';
+  delBtn.style.display = (CURRENT_USER && CURRENT_USER.role === 'admin') ? '' : 'none';
 
-  // Staff withdraw button (only for own pending memos)
+  // Staff withdraw button (only own pending)
   const wdBtn = document.getElementById('readerWithdrawBtn');
-  wdBtn.style.display = (n.status === 'pending' && n.submitted_by_name === CURRENT_USER.full_name) ? '' : 'none';
+  wdBtn.style.display = (
+    CURRENT_USER && n.status === 'pending' && n.submitted_by === CURRENT_USER.id
+  ) ? '' : 'none';
 
-  // Pop notice modal open
   document.getElementById('noticeReaderBackdrop').classList.add('open');
 }
 
@@ -395,21 +358,48 @@ function closeDetail() {
   currentDetailId = null;
 }
 
-function deleteCurrentNotice() {
+async function deleteCurrentNotice() {
   if (!currentDetailId) return;
   if (!confirm('Are you sure you want to delete this notice?')) return;
-  mockNotices = mockNotices.filter(n => n.id !== currentDetailId);
-  closeDetail();
-  loadNotices();
-  showToast('Notice deleted.');
+
+  try {
+    const res = await fetch(`${API}/notices/${currentDetailId}`, {
+      method: 'DELETE', credentials: 'include'
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      showToast(d.error || 'Delete failed.', 'error');
+      return;
+    }
+    mockNotices = mockNotices.filter(n => n.id !== currentDetailId);
+    closeDetail();
+    renderFeed();
+    showToast('Notice deleted.');
+  } catch {
+    showToast('Could not delete notice.', 'error');
+  }
 }
 
-function withdrawCurrentMemo() {
+async function withdrawCurrentMemo() {
   if (!currentDetailId) return;
-  const n = mockNotices.find(n => n.id === currentDetailId);
-  if (n) mockNotices = mockNotices.filter(x => x.id !== n.id);
-  closeDetail();
-  showToast('Memo withdrawn.');
+  if (!confirm('Withdraw this memo submission?')) return;
+
+  try {
+    const res = await fetch(`${API}/notices/${currentDetailId}`, {
+      method: 'DELETE', credentials: 'include'
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      showToast(d.error || 'Withdraw failed.', 'error');
+      return;
+    }
+    mockNotices = mockNotices.filter(n => n.id !== currentDetailId);
+    closeDetail();
+    renderFeed();
+    showToast('Memo withdrawn.');
+  } catch {
+    showToast('Could not withdraw memo.', 'error');
+  }
 }
 
 /* =========================================================
@@ -427,78 +417,82 @@ function doPrint(withAttach) {
 }
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('.print-menu-wrap')) document.getElementById('printMenu')?.classList.remove('open');
+  if (!e.target.closest('.print-menu-wrap')) {
+    document.getElementById('printMenu')?.classList.remove('open');
+  }
 });
 
 /* =========================================================
-   UNIFIED PUBLISH / SUBMIT FORM
+   UNIFIED PUBLISH / SUBMIT FORM  (real API)
    ========================================================= */
 function handlePubFileSelect(input) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 10 * 1024 * 1024) { showToast('File exceeds 10 MB limit.', 'error'); input.value = ''; return; }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('File exceeds 10 MB limit.', 'error');
+    input.value = '';
+    return;
+  }
   pubSelectedFile = file;
   document.getElementById('pubUploadLabel').textContent = '✓ ' + file.name;
   document.getElementById('pubUploadZone').classList.add('has-file');
 }
 
-document.getElementById('unifiedPublishForm').addEventListener('submit', (e) => {
+document.getElementById('unifiedPublishForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const title = document.getElementById('pub_title').value.trim();
-  const body = document.getElementById('pub_body').value.trim();
-  const category = document.getElementById('pub_category').value.trim() || 'Notice';
-  const date = document.getElementById('pub_date').value;
-  
-  const isAdmin = CURRENT_USER.role === 'dept_admin' || CURRENT_USER.role === 'super_admin';
-  
-  let isGeneral = false;
-  let urgent = false;
-  
-  if (isAdmin) {
-    isGeneral = document.getElementById('pub_general')?.checked || false;
-    urgent = document.getElementById('pub_urgent')?.value === 'urgent';
-  } else {
-    const audience = document.getElementById('pub_audience')?.value;
-    isGeneral = (audience === 'general');
-  }
+  const title    = document.getElementById('pub_title').value.trim();
+  const body     = document.getElementById('pub_body').value.trim();
+  const dateVal  = document.getElementById('pub_date').value;
 
   if (!title || !body) { showToast('Please fill in the title and details.', 'error'); return; }
+  if (!dateVal)        { showToast('Please enter a date.', 'error'); return; }
 
-  const attachObj = pubSelectedFile ? {
-    name: pubSelectedFile.name,
-    size: pubSelectedFile.size > 1024 * 1024 ? (pubSelectedFile.size / 1024 / 1024).toFixed(1) + ' MB' : Math.round(pubSelectedFile.size / 1024) + ' KB',
-    path: URL.createObjectURL(pubSelectedFile)
-  } : null;
+  const isAdmin  = CURRENT_USER.role === 'admin';
+  const isPublic = isAdmin
+    ? (document.getElementById('pub_general')?.checked || false)
+    : (document.getElementById('pub_audience')?.value === 'general');
+  const isUrgent = isAdmin && document.getElementById('pub_urgent')?.value === 'urgent';
 
-  const newNotice = {
-    id: Date.now(),
-    ref: 'TNB/NTC/2026/' + String(mockNotices.length + 1).padStart(3, '0'),
-    title, category, body,
-    is_general: isGeneral ? 1 : 0,
-    department_name: isGeneral ? null : CURRENT_DEPT_NAME,
-    status: isAdmin ? 'approved' : 'pending',
-    urgent: isAdmin ? urgent : false,
-    posted_by_name: isAdmin ? CURRENT_USER.full_name : null,
-    submitted_by_name: !isAdmin ? CURRENT_USER.full_name : null,
-    attachment_name: attachObj?.name || null,
-    attachment_path: attachObj?.path || null,
-    attachment_size: attachObj?.size || null,
-    created_at: date ? new Date(date).toISOString() : new Date().toISOString()
-  };
+  const btn = document.getElementById('pubSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
 
-  mockNotices.unshift(newNotice);
-  document.getElementById('unifiedPublishForm').reset();
-  pubSelectedFile = null;
-  document.getElementById('pubUploadLabel').textContent = 'Click to attach a file';
-  document.getElementById('pubUploadZone').classList.remove('has-file');
-  updatePendingBadge();
+  try {
+    const res = await fetch(`${API}/notices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        title,
+        body,
+        notice_date: dateVal,
+        is_urgent:   isUrgent ? 1 : 0,
+        is_public:   isPublic ? 1 : 0
+      })
+    });
 
-  if (isAdmin) {
-    addNotif('Notice published: "' + title + '"', 'Posted to ' + (isGeneral ? 'all departments' : CURRENT_DEPT_NAME) + (urgent ? ' · Pinned as urgent' : ''));
+    const data = await res.json();
+
+    if (!res.ok) {
+      showToast(data.error || 'Failed to submit.', 'error');
+      return;
+    }
+
+    document.getElementById('unifiedPublishForm').reset();
+    pubSelectedFile = null;
+    document.getElementById('pubUploadLabel').textContent = 'Click to attach a file';
+    document.getElementById('pubUploadZone').classList.remove('has-file');
+
+    showToast(isAdmin
+      ? `Notice published: "${title}"`
+      : `Memo submitted for approval: "${title}"`
+    );
     showView('feed');
-  } else {
-    addNotif('Memo submitted for approval', '"' + title + '" — sent for admin review');
-    showView('feed');
+  } catch {
+    showToast('Could not reach the server.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = isAdmin ? 'Publish Notice' : 'Submit for Approval';
   }
 });
 
@@ -508,96 +502,105 @@ document.getElementById('unifiedPublishForm').addEventListener('submit', (e) => 
 function loadCalendarEvents() {
   const listEl = document.getElementById('calendarEventsList');
   if (!listEl) return;
-  
-  if (!mockCalendarEvents.length) {
-    listEl.innerHTML = '<div class="empty-state">No upcoming sitting sessional events.</div>';
+
+  if (!calendarEvents.length) {
+    listEl.innerHTML = '<div class="empty-state">No upcoming events.</div>';
     return;
   }
-  
-  listEl.innerHTML = mockCalendarEvents.map(ev => {
-    const dt = new Date(ev.date);
+
+  const sorted = [...calendarEvents].sort((a, b) => new Date(a.date) - new Date(b.date));
+  listEl.innerHTML = sorted.map(ev => {
+    const dt            = new Date(ev.date);
     const dateFormatted = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     const timeFormatted = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    
     return `
-      <div class="notice-card" style="padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px;" onclick="window.open('https://calendar.google.com', '_blank')" style="cursor:pointer;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-          <h4 style="margin: 0; font-size: 13.5px; color: var(--green-950);">${escapeHtml(ev.title)}</h4>
-          <span style="font-size: 11px; font-weight: 700; background: #eaf1ee; color: var(--green-800); padding: 2px 8px; border-radius: 999px;">${dateFormatted}</span>
+      <div class="notice-card" style="padding:12px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="window.open('https://calendar.google.com','_blank')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <h4 style="margin:0;font-size:13.5px;color:var(--green-950);">${escapeHtml(ev.title)}</h4>
+          <span style="font-size:11px;font-weight:700;background:#eaf1ee;color:var(--green-800);padding:2px 8px;border-radius:999px;">${dateFormatted}</span>
         </div>
-        <p style="margin: 6px 0 0; font-size: 12px; color: var(--ink-600);">${escapeHtml(ev.details || '')}</p>
-        <div style="margin-top: 8px; font-size: 10.5px; color: var(--ink-soft); display:flex; align-items:center; gap:4px;">
-          <span>🕒 Start: ${timeFormatted}</span>
-          <span style="margin-left:auto; color: var(--gold-500); font-weight:600;">View Calendar ›</span>
+        <p style="margin:6px 0 0;font-size:12px;color:var(--ink-600);">${escapeHtml(ev.details || '')}</p>
+        <div style="margin-top:8px;font-size:10.5px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">
+          <span>🕒 ${timeFormatted}</span>
+          <span style="margin-left:auto;color:var(--gold-500);font-weight:600;">View Calendar ›</span>
         </div>
-      </div>
-    `;
+      </div>`;
   }).join('');
 }
 
-// Add calendar event form (Admin Only)
 document.getElementById('addEventForm').addEventListener('submit', (e) => {
   e.preventDefault();
-  const title = document.getElementById('ev_title').value.trim();
-  const dtVal = document.getElementById('ev_datetime').value;
+  const title   = document.getElementById('ev_title').value.trim();
+  const dtVal   = document.getElementById('ev_datetime').value;
   const details = document.getElementById('ev_details').value.trim();
-  
+
   if (!title || !dtVal) { showToast('Please fill in title and datetime.', 'error'); return; }
-  
-  const newEv = {
-    id: Date.now(),
-    title,
-    date: dtVal,
-    details
-  };
-  
-  mockCalendarEvents.push(newEv);
+
+  calendarEvents.push({ id: Date.now(), title, date: dtVal, details });
   document.getElementById('addEventForm').reset();
-  
-  // Reload list
   loadCalendarEvents();
-  
-  // Alert all users through the Notifications bell & toast alert
-  addNotif(`📅 Calendar Event: ${title}`, `Scheduled for ${fmtDate(dtVal)} · ${details.slice(0, 50)}`);
+  showToast(`📅 Event added: "${title}"`);
 });
 
 /* =========================================================
-   APPROVALS (admin)
+   APPROVALS  (real API — admin only)
    ========================================================= */
-function loadApprovals() {
-  const pending = mockNotices.filter(n => n.status === 'pending');
+async function loadApprovals() {
   const list = document.getElementById('approvalsList');
+  list.innerHTML = '<div class="empty-state">Loading…</div>';
 
-  if (!pending.length) {
-    list.innerHTML = '<div class="empty-state">No notices or memos waiting for approval. All caught up. ✓</div>';
-    return;
-  }
+  try {
+    const res = await fetch(`${API}/notices?status=pending`, { credentials: 'include' });
+    if (!res.ok) { list.innerHTML = '<div class="empty-state">Could not load approvals.</div>'; return; }
+    const pending = await res.json();
 
-  list.innerHTML = pending.map(n => `
-    <div class="notice-card" id="pending-item-${n.id}">
-      <div class="notice-card-head">
-        <div>
-          <span class="pill dept">${escapeHtml(n.department_name || 'General')}</span>
-          <h3 style="margin:4px 0 0;">${escapeHtml(n.title)}</h3>
+    if (!pending.length) {
+      list.innerHTML = '<div class="empty-state">No notices or memos waiting for approval. All caught up. ✓</div>';
+      return;
+    }
+
+    list.innerHTML = pending.map(n => `
+      <div class="notice-card" id="pending-item-${n.id}">
+        <div class="notice-card-head">
+          <div>
+            <span class="pill dept">${escapeHtml(n.tribunal_name || 'General')}</span>
+            <h3 style="margin:4px 0 0;">${escapeHtml(n.title)}</h3>
+          </div>
+          <span class="card-date">${timeAgo(n.created_at)}</span>
         </div>
-        <span class="card-date">${timeAgo(n.created_at)}</span>
-      </div>
-      <div class="notice-meta">${n.category ? escapeHtml(n.category) + ' · ' : ''}Submitted by <strong>${escapeHtml(n.submitted_by_name || n.posted_by_name)}</strong></div>
-      <div class="notice-body">${escapeHtml(n.body.slice(0, 200))}${n.body.length > 200 ? '…' : ''}</div>
-      <div class="notice-actions" onclick="event.stopPropagation()">
-        <button class="btn-small approve" onclick="approveNotice(${n.id})">✓ Approve</button>
-        <button class="btn-small reject" onclick="openReject(${n.id})">✕ Reject</button>
-      </div>
-    </div>`).join('');
+        <div class="notice-meta">Submitted by <strong>${escapeHtml(n.submitted_by_name || '—')}</strong> · ${fmtDate(n.notice_date)}</div>
+        <div class="notice-body">${escapeHtml(n.body.slice(0, 200))}${n.body.length > 200 ? '…' : ''}</div>
+        <div class="notice-actions" onclick="event.stopPropagation()">
+          <button class="btn-small approve" onclick="approveNotice(${n.id})">✓ Approve</button>
+          <button class="btn-small reject"  onclick="openReject(${n.id})">✕ Reject</button>
+        </div>
+      </div>`).join('');
+
+    // Keep a pending count badge
+    const badge = document.getElementById('pendingBadge');
+    if (badge) { badge.textContent = pending.length; badge.style.display = pending.length > 0 ? 'inline-flex' : 'none'; }
+
+  } catch {
+    list.innerHTML = '<div class="empty-state">Could not load approvals.</div>';
+  }
 }
 
-function approveNotice(id) {
-  const n = mockNotices.find(n => n.id === id);
-  if (n) { n.status = 'approved'; n.posted_by_name = CURRENT_USER.full_name; }
-  document.getElementById('pending-item-' + id)?.remove();
-  updatePendingBadge();
-  addNotif('Notice approved: "' + n.title + '"', 'Now visible to ' + (n.is_general ? 'all staff' : n.department_name));
-  loadApprovals();
+async function approveNotice(id) {
+  try {
+    const res = await fetch(`${API}/notices/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ status: 'approved' })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Approve failed.', 'error'); return; }
+    document.getElementById('pending-item-' + id)?.remove();
+    showToast('Notice approved.');
+    loadApprovals();
+  } catch {
+    showToast('Could not approve notice.', 'error');
+  }
 }
 
 function openReject(id) {
@@ -611,41 +614,151 @@ function closeReject() {
   document.getElementById('rejectBackdrop').classList.remove('open');
 }
 
-function confirmReject() {
+async function confirmReject() {
   const reason = document.getElementById('rejectReason').value.trim();
-  const n = mockNotices.find(n => n.id === rejectTargetId);
-  if (n) { n.status = 'rejected'; n.reject_reason = reason; }
-  closeReject();
-  updatePendingBadge();
-  addNotif('Memo rejected: "' + n.title + '"', reason ? 'Reason: ' + reason : 'No reason provided.');
-  loadApprovals();
+
+  try {
+    const res = await fetch(`${API}/notices/${rejectTargetId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ status: 'rejected', reject_reason: reason })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Reject failed.', 'error'); return; }
+    closeReject();
+    showToast('Memo rejected.');
+    loadApprovals();
+  } catch {
+    showToast('Could not reject memo.', 'error');
+  }
 }
 
 /* =========================================================
-   USERS VIEW
+   USERS VIEW  (real API — admin only)
    ========================================================= */
-function loadUsers() {
-  document.getElementById('usersTableWrap').innerHTML = '<div class="empty-state">User management view — connect to your backend API.</div>';
+async function loadUsers() {
+  const wrap = document.getElementById('usersTableWrap');
+  wrap.innerHTML = '<div class="empty-state">Loading users…</div>';
+
+  try {
+    const res = await fetch(`${API}/users`, { credentials: 'include' });
+    if (!res.ok) { wrap.innerHTML = '<div class="empty-state">Could not load users.</div>'; return; }
+    const users = await res.json();
+
+    if (!users.length) {
+      wrap.innerHTML = '<div class="empty-state">No users found.</div>';
+      return;
+    }
+
+    wrap.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13.5px;">
+          <thead>
+            <tr style="background:var(--sidebar);color:var(--white);text-align:left;">
+              <th style="padding:10px 14px;">Name</th>
+              <th style="padding:10px 14px;">Staff ID</th>
+              <th style="padding:10px 14px;">Department</th>
+              <th style="padding:10px 14px;">Tribunal</th>
+              <th style="padding:10px 14px;">Role</th>
+              <th style="padding:10px 14px;">Status</th>
+              <th style="padding:10px 14px;">Last Login</th>
+              <th style="padding:10px 14px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr id="user-row-${u.id}" style="border-bottom:1px solid var(--border);">
+                <td style="padding:10px 14px;font-weight:600;">${escapeHtml(u.full_name)}</td>
+                <td style="padding:10px 14px;color:var(--ink-600);">${escapeHtml(u.user_id)}</td>
+                <td style="padding:10px 14px;">${escapeHtml(u.department)}</td>
+                <td style="padding:10px 14px;">${escapeHtml(u.tribunal_name || '—')}</td>
+                <td style="padding:10px 14px;">
+                  <span style="padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;
+                    background:${u.role === 'admin' ? '#d4edda' : '#e9ecef'};
+                    color:${u.role === 'admin' ? '#1E6B44' : '#495057'};">
+                    ${u.role}
+                  </span>
+                </td>
+                <td style="padding:10px 14px;">
+                  <span style="padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700;
+                    background:${u.is_active ? '#d4edda' : '#f8d7da'};
+                    color:${u.is_active ? '#155724' : '#721c24'};">
+                    ${u.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td style="padding:10px 14px;color:var(--ink-600);font-size:12px;">${u.last_login_at ? timeAgo(u.last_login_at) : 'Never'}</td>
+                <td style="padding:10px 14px;">
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    ${u.id !== CURRENT_USER.id ? `
+                      <button class="btn-small ${u.is_active ? 'reject' : 'approve'}"
+                        onclick="toggleUser(${u.id}, ${u.is_active})">
+                        ${u.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button class="btn-small" style="background:var(--gold-50);color:var(--gold-700);border:1px solid var(--gold-300);"
+                        onclick="changeRole(${u.id}, '${u.role === 'admin' ? 'staff' : 'admin'}')">
+                        Make ${u.role === 'admin' ? 'Staff' : 'Admin'}
+                      </button>
+                    ` : '<span style="color:var(--ink-soft);font-size:12px;">You</span>'}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch {
+    wrap.innerHTML = '<div class="empty-state">Could not load users.</div>';
+  }
+}
+
+async function toggleUser(id, currentlyActive) {
+  try {
+    const res  = await fetch(`${API}/users/${id}/toggle`, { method: 'PATCH', credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Failed.', 'error'); return; }
+    showToast(data.message);
+    loadUsers();
+  } catch {
+    showToast('Could not update user.', 'error');
+  }
+}
+
+async function changeRole(id, newRole) {
+  if (!confirm(`Change this user's role to ${newRole}?`)) return;
+  try {
+    const res  = await fetch(`${API}/users/${id}/role`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ role: newRole })
+    });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error || 'Failed.', 'error'); return; }
+    showToast(data.message);
+    loadUsers();
+  } catch {
+    showToast('Could not update user role.', 'error');
+  }
 }
 
 /* =========================================================
-   DOCUMENTS
+   DOCUMENTS  (real API via resources endpoint)
    ========================================================= */
-document.getElementById('docSearch').addEventListener('input', loadDocuments);
-document.getElementById('docTypeFilter').addEventListener('change', loadDocuments);
-document.getElementById('docDateFilter').addEventListener('change', loadDocuments);
+document.getElementById('docSearch').addEventListener('input', renderDocuments);
+document.getElementById('docTypeFilter').addEventListener('change', renderDocuments);
+document.getElementById('docDateFilter').addEventListener('change', renderDocuments);
 
-function loadDocuments() {
-  const q = document.getElementById('docSearch').value.toLowerCase();
+function renderDocuments() {
+  const q          = document.getElementById('docSearch').value.toLowerCase();
   const typeFilter = document.getElementById('docTypeFilter').value;
   const dateFilter = document.getElementById('docDateFilter').value;
 
   let docs = mockDocuments.filter(d => {
-    const matchScope = CURRENT_USER.role === 'super_admin' || d.is_general || d.department_name === CURRENT_DEPT_NAME;
-    const matchQ = !q || d.title.toLowerCase().includes(q) || (d.description || '').toLowerCase().includes(q);
+    const matchQ    = !q || d.name.toLowerCase().includes(q) || (d.description || '').toLowerCase().includes(q);
     const matchType = !typeFilter || d.doc_type === typeFilter;
-    const matchDate = !dateFilter || new Date(d.created_at).toISOString().slice(0, 10) === dateFilter;
-    return matchScope && matchQ && matchType && matchDate;
+    const matchDate = !dateFilter || (d.resource_date || d.created_at || '').slice(0, 10) === dateFilter;
+    return matchQ && matchType && matchDate;
   });
 
   const list = document.getElementById('documentList');
@@ -658,52 +771,90 @@ function loadDocuments() {
     <div class="notice-card doc-card">
       <div class="notice-card-head">
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:28px;line-height:1;">${docTypeIcon(d.doc_type)}</span>
+          <span style="font-size:28px;line-height:1;">${docTypeIcon(d.doc_type || 'Document')}</span>
           <div>
-            <h3 style="margin:0;font-size:15.5px;">${escapeHtml(d.title)}</h3>
+            <h3 style="margin:0;font-size:15.5px;">${escapeHtml(d.name)}</h3>
             <div class="notice-meta" style="margin:2px 0 0;">
-              ${escapeHtml(d.doc_type)} · ${d.is_general ? '<span class="pill general">General</span>' : '<span class="pill dept">' + escapeHtml(d.department_name || '') + '</span>'}
+              ${d.is_public
+                ? '<span class="pill general">Public</span>'
+                : `<span class="pill dept">${escapeHtml(d.tribunal_name || '')}</span>`}
             </div>
           </div>
         </div>
-        <a href="${d.file_path}" target="_blank" class="btn-gold" style="padding:7px 14px;font-size:13px;text-decoration:none;border-radius:8px;">⬇ Download</a>
+        <a href="${escapeHtml(d.file_url)}" target="_blank" class="btn-gold"
+           style="padding:7px 14px;font-size:13px;text-decoration:none;border-radius:8px;">⬇ Download</a>
       </div>
       ${d.description ? `<div class="notice-body" style="margin-top:10px;">${escapeHtml(d.description)}</div>` : ''}
       <div class="notice-meta" style="margin-top:10px;">
-        📎 ${escapeHtml(d.file_name)} ${d.file_size ? '(' + formatFileSize(d.file_size) + ')' : ''}
-        · Uploaded by ${escapeHtml(d.uploaded_by_name)} · ${timeAgo(d.created_at)}
+        Uploaded by ${escapeHtml(d.uploaded_by_name || '—')} · ${timeAgo(d.created_at)}
+        ${d.file_size ? ' · ' + formatFileSize(d.file_size) : ''}
       </div>
     </div>`).join('');
 }
 
+async function loadDocuments() {
+  try {
+    const res = await fetch(`${API}/resources`, { credentials: 'include' });
+    if (res.ok) mockDocuments = await res.json();
+  } catch {
+    showToast('Could not load documents.', 'error');
+  }
+  renderDocuments();
+}
+
 /* =========================================================
-   UPLOAD DOCUMENT FORM
+   UPLOAD DOCUMENT FORM  (real API)
    ========================================================= */
-document.getElementById('docUploadForm').addEventListener('submit', (e) => {
+document.getElementById('docUploadForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const title = document.getElementById('d_title').value.trim();
-  const type = document.getElementById('d_type').value;
-  const desc = document.getElementById('d_description').value.trim();
-  const file = document.getElementById('d_file').files[0];
-  const isGeneral = document.getElementById('d_general')?.checked || false;
+  const title    = document.getElementById('d_title').value.trim();
+  const type     = document.getElementById('d_type').value;
+  const desc     = document.getElementById('d_description').value.trim();
+  const file     = document.getElementById('d_file').files[0];
+  const isPublic = document.getElementById('d_general')?.checked || false;
 
-  if (!title || !type || !file) { showToast('Please fill in all required fields.', 'error'); return; }
+  if (!title || !type) { showToast('Please fill in all required fields.', 'error'); return; }
+  if (!file)           { showToast('Please select a file.', 'error'); return; }
 
-  const isAdmin = CURRENT_USER.role === 'dept_admin' || CURRENT_USER.role === 'super_admin';
-  mockDocuments.unshift({
-    id: Date.now(), title, doc_type: type, description: desc,
-    is_general: isGeneral ? 1 : 0,
-    department_name: isGeneral ? null : CURRENT_DEPT_NAME,
-    file_path: URL.createObjectURL(file),
-    file_name: file.name, file_size: file.size,
-    status: isAdmin ? 'approved' : 'pending',
-    uploaded_by_name: CURRENT_USER.full_name,
-    created_at: new Date().toISOString()
-  });
+  const btn = document.getElementById('docUploadBtn');
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
 
-  document.getElementById('docUploadForm').reset();
-  showToast(isAdmin ? 'Document uploaded successfully.' : 'Document submitted for approval.');
-  showView('documents');
+  try {
+    // Build a data-URL as the file_url (no file server, just store the reference)
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const fileDataUrl = reader.result;
+      const res = await fetch(`${API}/resources`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name:          title,
+          description:   desc || null,
+          file_url:      fileDataUrl,
+          file_size:     file.size.toString(),
+          is_public:     isPublic ? 1 : 0,
+          resource_date: new Date().toISOString().slice(0, 10)
+        })
+      });
+
+      const data = await res.json();
+      btn.disabled = false;
+      btn.textContent = 'Upload Document';
+
+      if (!res.ok) { showToast(data.error || 'Upload failed.', 'error'); return; }
+
+      document.getElementById('docUploadForm').reset();
+      showToast('Document uploaded successfully.');
+      showView('documents');
+    };
+    reader.readAsDataURL(file);
+  } catch {
+    showToast('Upload failed.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Upload Document';
+  }
 });
 
 /* =========================================================
@@ -718,90 +869,114 @@ document.addEventListener('keydown', e => {
 });
 
 /* =========================================================
-   INIT
+   INIT — verify session first, then bootstrap UI
    ========================================================= */
-function init() {
-  const userJson = localStorage.getItem('user');
-  if (userJson) {
-    CURRENT_USER = JSON.parse(userJson);
-  } else {
-    // Default fallback
-    CURRENT_USER = { full_name: 'Demo Admin', role: 'super_admin', department_id: 6 };
+async function init() {
+  // Verify session is alive on the server
+  try {
+    const meRes = await fetch(`${API}/auth/me`, { credentials: 'include' });
+    if (meRes.ok) {
+      CURRENT_USER = await meRes.json();
+      localStorage.setItem('user', JSON.stringify(CURRENT_USER));
+    } else {
+      // Session gone — fall back to localStorage or redirect
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        CURRENT_USER = JSON.parse(stored);
+      } else {
+        if (window.location.protocol === 'file:') {
+          window.location.href = '../JUDICIARY/index.html';
+        } else if (window.location.pathname.startsWith('/dashboard2/')) {
+          window.location.href = '/JUDICIARY/index.html';
+        } else {
+          window.location.href = '/index.html';
+        }
+        return;
+      }
+    }
+  } catch {
+    // Offline or server down — try localStorage
+    const stored = localStorage.getItem('user');
+    if (stored) {
+      CURRENT_USER = JSON.parse(stored);
+    } else {
+      if (window.location.protocol === 'file:') {
+        window.location.href = '../JUDICIARY/index.html';
+      } else if (window.location.pathname.startsWith('/dashboard2/')) {
+        window.location.href = '/JUDICIARY/index.html';
+      } else {
+        window.location.href = '/index.html';
+      }
+      return;
+    }
   }
 
-  CURRENT_DEPT_NAME = mockDepartments.find(d => d.id === CURRENT_USER.department_id)?.name || 'System';
+  // ── UI bootstrap ──
+  const isAdmin = CURRENT_USER.role === 'admin';
 
   document.getElementById('sbUserName').textContent = CURRENT_USER.full_name;
-  document.getElementById('sbUserDept').textContent =
-    CURRENT_USER.role === 'super_admin' ? 'Super Admin · All Departments' :
-    CURRENT_USER.role === 'dept_admin' ? 'Dept. Admin · ' + CURRENT_DEPT_NAME :
-    CURRENT_DEPT_NAME;
+  document.getElementById('sbUserDept').textContent = isAdmin
+    ? 'Admin · ' + CURRENT_USER.department
+    : CURRENT_USER.department;
 
-  document.getElementById('welcomeTitle').textContent = 'Welcome back, ' + CURRENT_USER.full_name.split(' ')[0];
-  document.getElementById('welcomeSub').textContent =
-    CURRENT_USER.role === 'super_admin'
-      ? 'You can view notices and memos across every department.'
-      : 'Here are the notices and memos for ' + CURRENT_DEPT_NAME + ' and general updates.';
+  document.getElementById('welcomeTitle').textContent =
+    'Welcome back, ' + CURRENT_USER.full_name.split(' ')[0];
+  document.getElementById('welcomeSub').textContent = isAdmin
+    ? 'You can view and manage all notices, memos and users.'
+    : 'Here are the notices and memos for your tribunal and department.';
 
-  const isAdmin = CURRENT_USER.role === 'dept_admin' || CURRENT_USER.role === 'super_admin';
-
+  // Show admin-only sidebar links
   if (isAdmin) {
     document.getElementById('approvalsLink').style.display = '';
-    
-    // Toggle unified publish parameters for admin
-    document.getElementById('publishFormTitle').textContent = 'Post a new notice';
-    document.getElementById('publishFormSubtitle').textContent = 'Add a department notice or sessional circular instantly.';
-    document.getElementById('audienceFieldWrap').style.display = 'none';
+    document.getElementById('usersLink').style.display     = '';
+
+    // Publish form: admin mode
+    document.getElementById('publishFormTitle').textContent    = 'Post a new notice';
+    document.getElementById('publishFormSubtitle').textContent = 'Add a department notice or circular instantly.';
+    document.getElementById('audienceFieldWrap').style.display  = 'none';
     document.getElementById('pubGeneralCheckWrap').style.display = 'flex';
-    document.getElementById('priorityFieldWrap').style.display = 'block';
-    document.getElementById('pubSubmitBtn').textContent = 'Publish Notice';
-    
-    // Show calendar event creator
+    document.getElementById('priorityFieldWrap').style.display   = 'block';
+    document.getElementById('pubSubmitBtn').textContent          = 'Publish Notice';
+
+    // Show admin calendar creator
     document.getElementById('adminEventCreator').style.display = 'block';
+
+    // Show "share with all" in doc upload
+    document.getElementById('docGeneralWrap').style.display = 'flex';
   } else {
-    // Toggle unified submit memo parameters for staff
-    document.getElementById('publishFormTitle').textContent = 'Submit a memo';
+    // Publish form: staff mode
+    document.getElementById('publishFormTitle').textContent    = 'Submit a memo';
     document.getElementById('publishFormSubtitle').textContent = 'Send a new memo for admin review and approval.';
-    document.getElementById('audienceFieldWrap').style.display = 'block';
+    document.getElementById('audienceFieldWrap').style.display  = 'block';
     document.getElementById('pubGeneralCheckWrap').style.display = 'none';
-    document.getElementById('priorityFieldWrap').style.display = 'none';
-    document.getElementById('pubSubmitBtn').textContent = 'Submit for Approval';
-    
-    // Hide calendar event creator
-    document.getElementById('adminEventCreator').style.display = 'none';
+    document.getElementById('priorityFieldWrap').style.display   = 'none';
+    document.getElementById('pubSubmitBtn').textContent          = 'Submit for Approval';
   }
 
-  if (CURRENT_USER.role === 'super_admin') {
-    document.getElementById('usersLink').style.display = '';
-    document.getElementById('deptSwitcherWrap').style.display = '';
-    const sel = document.getElementById('deptSwitcher');
-    mockDepartments.forEach(d => {
-      const opt = document.createElement('option');
-      opt.value = d.id; opt.textContent = d.name;
-      sel.appendChild(opt);
-    });
-    sel.addEventListener('change', loadNotices);
-  }
-
-  updatePendingBadge();
-  renderNotifList();
-
-  if (notifications.length === 0) {
-    notifications.push(
-      { id: 1, title: 'Welcome to the notice board', meta: 'Logged in as ' + CURRENT_USER.full_name, read: false },
-      { id: 2, title: 'New memo pending review', meta: 'Jane Otieno · Employment & Labour Relations · Today', read: false }
-    );
-    renderNotifList();
-    updateNotifDot();
-  }
-
-  // Determine initial view from URL query params (e.g. ?view=calendar)
-  const urlParams = new URLSearchParams(window.location.search);
-  const initialView = urlParams.get('view') || 'feed';
-
-  showView(views.includes(initialView) ? initialView : 'feed');
+  // Load initial data
+  await loadNotifications();
+  showView('feed');
   loadOnlineUsers();
-  loadCalendarEvents();
+
+  // Poll notifications every 60 seconds
+  setInterval(loadNotifications, 60000);
 }
+
+// Expose functions called from inline HTML onclick attributes
+window.toggleNotifPanel    = toggleNotifPanel;
+window.closeNotifPanel     = closeNotifPanel;
+window.closeDetail         = closeDetail;
+window.deleteCurrentNotice = deleteCurrentNotice;
+window.withdrawCurrentMemo = withdrawCurrentMemo;
+window.togglePrintMenu     = togglePrintMenu;
+window.doPrint             = doPrint;
+window.openDetail          = openDetail;
+window.openReject          = openReject;
+window.closeReject         = closeReject;
+window.confirmReject       = confirmReject;
+window.approveNotice       = approveNotice;
+window.toggleUser          = toggleUser;
+window.changeRole          = changeRole;
+window.handlePubFileSelect = handlePubFileSelect;
 
 init();

@@ -18,8 +18,8 @@ app.use(express.json());
 // Allow requests from any localhost origin (Live Server, direct file open, etc.)
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow same-origin (no origin header) and any localhost
-    if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    // Allow same-origin (no origin header), null (file:// origin), and any localhost
+    if (!origin || origin === 'null' || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       return cb(null, true);
     }
     cb(new Error('CORS: Not allowed'));

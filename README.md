@@ -254,6 +254,7 @@ The app uses **SQLite** via [sql.js](https://github.com/sql-js/sql.js) (pure Jav
 
 ## Roadmap
 
+- [x] Fix post-login redirect — works for both Live Server (port 5500) and backend server (port 3000)
 - [ ] Wire dashboard.js publish form to `POST /api/notices`
 - [ ] Wire dashboard.js document upload to `POST /api/resources`
 - [ ] Wire approve / reject buttons to `PATCH /api/notices/:id/status`

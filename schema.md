@@ -487,3 +487,10 @@ A notice is **Public** when `is_public = 1`. In this case `tribunal_id` may be `
 
 ### Soft Deletes
 This schema does not include soft deletes. If you need to deactivate notices without permanently removing them, add an `is_deleted INTEGER NOT NULL DEFAULT 0` column to the `notices` table and filter on it in all queries.
+
+### Frontend Serving
+The Express server serves both frontends as static directories:
+- `JUDICIARY/` → `http://localhost:3000/index.html` (login & register)
+- `dashboard2/` → `http://localhost:3000/dashboard.html` (main dashboard)
+
+When using Live Server (port 5500), the login page redirects to `../dashboard2/dashboard.html` using a relative path. When served via the backend (port 3000), it redirects to `/dashboard.html`. The redirect logic in `JUDICIARY/script.js` detects the port automatically.

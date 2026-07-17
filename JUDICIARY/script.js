@@ -54,15 +54,12 @@ form.addEventListener('submit', async (e) => {
     localStorage.setItem('user', JSON.stringify(data.user));
     status.textContent = `Welcome back, ${data.user.full_name.split(' ')[0]}! Redirecting…`;
 
-    // Redirect to dashboard — works when served from Express, Live Server, or direct file open
+    // Redirect to dashboard
     setTimeout(() => {
-      if (window.location.protocol === 'file:') {
-        window.location.href = '../dashboard2/dashboard.html';
-      } else if (window.location.pathname.startsWith('/JUDICIARY/')) {
-        window.location.href = '/dashboard2/dashboard.html';
-      } else {
-        window.location.href = '/dashboard.html';
-      }
+      const onBackend = window.location.port === '3000';
+      window.location.href = onBackend
+        ? '/dashboard.html'
+        : '../dashboard2/dashboard.html';
     }, 800);
 
   } catch {

@@ -26,7 +26,7 @@ const findFreePort = (startPort, maxPort = startPort + 9) => new Promise((resolv
     server.once('listening', () => {
       server.close(() => resolve(port));
     });
-    server.listen(port, '::');
+    server.listen(port, '0.0.0.0');
   };
   tryPort(startPort);
 });

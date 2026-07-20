@@ -82,7 +82,7 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Endpoint not found.
 // Start server — db is synchronous now, no promise needed
 findFreePort(DEFAULT_PORT)
   .then((port) => {
-    const server = app.listen(port, () => {
+    const server = app.listen(port, '0.0.0.0', () => {
       console.log(`\n✅  Tribunal backend running at http://localhost:${port}`);
       console.log(`    Login page  → http://localhost:${port}/index.html`);
       console.log(`    Dashboard   → http://localhost:${port}/dashboard.html`);

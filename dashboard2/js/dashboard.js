@@ -2,7 +2,12 @@
    dashboard.js  –  Tribunal Notice Board  — Full API-wired version
    ========================================================= */
 
-const API = 'http://localhost:3000/api';
+const API = (function () {
+  if (window.location.protocol === 'file:') {
+    return 'http://localhost:3000/api';
+  }
+  return `${window.location.protocol}//${window.location.host}/api`;
+})();
 
 let CURRENT_USER   = null;
 let rejectTargetId = null;

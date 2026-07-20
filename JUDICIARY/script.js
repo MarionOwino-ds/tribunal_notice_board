@@ -1,4 +1,9 @@
-const API = 'http://localhost:3000/api';
+const API = (function () {
+  if (window.location.protocol === 'file:') {
+    return 'http://localhost:3000/api';
+  }
+  return `${window.location.protocol}//${window.location.host}/api`;
+})();
 
 // Password visibility toggle
 const toggleBtn = document.getElementById('toggle-visibility');
@@ -56,10 +61,11 @@ form.addEventListener('submit', async (e) => {
 
     // Redirect to dashboard
     setTimeout(() => {
-      const onBackend = window.location.port === '3000';
-      window.location.href = onBackend
-        ? '/dashboard.html'
-        : '../dashboard2/dashboard.html';
+      if (window.location.protocol === 'file:') {
+        window.location.href = '../dashboard2/dashboard.html';
+      } else {
+        window.location.href = '/dashboard.html';
+      }
     }, 800);
 
   } catch {

@@ -1,4 +1,9 @@
-const API = 'http://localhost:3000/api';
+const API = (function () {
+  if (window.location.protocol === 'file:') {
+    return 'http://localhost:3000/api';
+  }
+  return `${window.location.protocol}//${window.location.host}/api`;
+})();
 
 // Password visibility toggle
 const toggleBtn = document.getElementById('toggle-visibility');

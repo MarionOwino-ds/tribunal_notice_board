@@ -11,15 +11,34 @@ const notificationsRoutes = require('./routes/notifications');
 const usersRoutes         = require('./routes/users');
 
 const app  = express();
-const PORT = process.env.PORT || 3000;
+const DEFAULT_PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
+
+const findFreePort = (startPort, maxPort = startPort + 9) => new Promise((resolve, reject) => {
+  const net = require('net');
+  const tryPort = (port) => {
+    if (port > maxPort) {
+      return reject(new Error(`No available port found between ${startPort} and ${maxPort}`));
+    }
+    const server = net.createServer();
+    server.once('error', () => {
+      server.close(() => tryPort(port + 1));
+    });
+    server.once('listening', () => {
+      server.close(() => resolve(port));
+    });
+    server.listen(port, '0.0.0.0');
+  };
+  tryPort(startPort);
+});
 
 app.use(express.json());
 
 // Allow requests from any localhost origin (Live Server, direct file open, etc.)
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow same-origin (no origin header), null (file:// origin), and any localhost
-    if (!origin || origin === 'null' || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+    // Allow same-origin (no Origin header), null (file://), localhost, and private LAN addresses.
+    if (!origin || origin === 'null' ||
+        /^(https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)(:\d+)?)$/.test(origin)) {
       return cb(null, true);
     }
     cb(new Error('CORS: Not allowed'));
@@ -61,9 +80,27 @@ app.use('/api/users',         usersRoutes);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Endpoint not found.' }));
 
 // Start server — db is synchronous now, no promise needed
-app.listen(PORT, () => {
-  console.log(`\n✅  Tribunal backend running at http://localhost:${PORT}`);
-  console.log(`    Login page  → http://localhost:${PORT}/index.html`);
-  console.log(`    Dashboard   → http://localhost:${PORT}/dashboard.html`);
-  console.log(`\n    Default admin: ADMIN001 / Admin@1234\n`);
-});
+findFreePort(DEFAULT_PORT)
+  .then((port) => {
+    const server = app.listen(port, '0.0.0.0', () => {
+      console.log(`\n✅  Tribunal backend running at http://localhost:${port}`);
+      console.log(`    Login page  → http://localhost:${port}/index.html`);
+      console.log(`    Dashboard   → http://localhost:${port}/dashboard.html`);
+      console.log(`\n    Default admin: ADMIN001 / Admin@1234\n`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n❌  Port ${port} is already in use.\n`);
+        console.error(`    Either stop the process using this port or set PORT to another value.`);
+      } else {
+        console.error(err);
+      }
+      process.exit(1);
+    });
+  })
+  .catch((err) => {
+    console.error(`\n❌  Failed to find an available port starting at ${DEFAULT_PORT}.`);
+    console.error(err.message);
+    process.exit(1);
+  });

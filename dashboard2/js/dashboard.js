@@ -2,7 +2,12 @@
    dashboard.js  –  Tribunal Notice Board  — Full API-wired version
    ========================================================= */
 
-const API = 'http://localhost:3000/api';
+const API = (function () {
+  if (window.location.protocol === 'file:') {
+    return 'http://localhost:3000/api';
+  }
+  return `${window.location.protocol}//${window.location.host}/api`;
+})();
 
 let CURRENT_USER   = null;
 let rejectTargetId = null;
@@ -204,7 +209,10 @@ document.getElementById('dateFilter').addEventListener('change', renderFeed);
 document.getElementById('urgentFilter').addEventListener('change', renderFeed);
 
 function getVisibleNotices() {
-  let list = mockNotices.filter(n => n.status === 'approved');
+  let list = mockNotices;
+  if (!CURRENT_USER || CURRENT_USER.role !== 'admin') {
+    list = list.filter(n => n.status === 'approved');
+  }
 
   const q          = document.getElementById('searchBox').value.toLowerCase();
   const cat        = document.getElementById('categoryFilter').value;
@@ -411,9 +419,9 @@ function togglePrintMenu() {
 
 function doPrint(withAttach) {
   const section = document.getElementById('printAttachSectionPrint');
-  section.style.display = (withAttach && section.innerHTML) ? '' : 'none';
+  section.style.display = (withAttach && section.innerHTML.trim()) ? '' : 'none';
   document.getElementById('printMenu').classList.remove('open');
-  setTimeout(() => window.print(), 80);
+  requestAnimationFrame(() => window.print());
 }
 
 document.addEventListener('click', e => {

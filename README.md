@@ -181,7 +181,8 @@ All endpoints are prefixed with `/api`. Requests and responses use JSON. Session
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/resources` | Required | Get shared documents (scoped by tribunal) |
-| `POST` | `/api/resources` | Admin | Add a resource by URL |
+| `POST` | `/api/resources` | Required | Upload a document. Admin: published immediately. Staff: sent for approval. |
+| `PATCH` | `/api/resources/:id/status` | Admin | Approve or reject a pending document upload |
 | `DELETE` | `/api/resources/:id` | Admin | Remove a resource |
 
 ### Notifications
@@ -249,9 +250,34 @@ The app uses **SQLite** via [sql.js](https://github.com/sql-js/sql.js) (pure Jav
 | Frontend | HTML5, Vanilla CSS, Vanilla JavaScript (ES2020) |
 | Fonts | Google Fonts — Inter |
 | Backend | Node.js, Express 4 |
-| Database | SQLite 3 via sql.js |
+| Database | SQLite 3 via better-sqlite3 |
 | Auth | express-session + session-file-store (8-hour sessions) |
 | Password hashing | bcryptjs (cost factor 12) |
+| Rate limiting | express-rate-limit (10 login attempts / 15 min per IP) |
+
+---
+
+## Environment Variables
+
+Create a `.env` file in `JUDICIARY/backend/` (or set these in your environment) before running in production:
+
+| Variable | Description | Default |
+|---|---|---|
+| `SESSION_SECRET` | Secret key used to sign session cookies | Insecure fallback string |
+| `PORT` | Port the backend listens on | `3000` |
+
+> **Never deploy without setting `SESSION_SECRET` to a long, random string.**
+
+---
+
+## Security Notes
+
+- Login is rate-limited to **10 attempts per IP per 15 minutes** to prevent brute force attacks.
+- Session cookies use `httpOnly` and `sameSite: lax`. Set `secure: true` and serve over HTTPS in production.
+- The session secret must be set via the `SESSION_SECRET` environment variable in production.
+- Request body size is capped at **1 MB** to prevent payload flooding.
+- Registration inputs are validated for maximum length (name ≤ 100, staff ID ≤ 50, email ≤ 150 chars).
+- Profile pictures and file uploads are stored in `JUDICIARY/backend/uploads/` (git-ignored).
 
 ---
 
@@ -263,7 +289,9 @@ The app uses **SQLite** via [sql.js](https://github.com/sql-js/sql.js) (pure Jav
 - [x] Wire approve / reject buttons to `PATCH /api/notices/:id/status`
 - [x] Wire withdraw button to `DELETE /api/notices/:id`
 - [x] Email notifications on memo approval / rejection
-- [ ] Load real notifications from `GET /api/notifications`
-- [ ] Admin user-management panel (create / deactivate accounts)
+- [x] Load real notifications from `GET /api/notifications`
+- [x] Admin user-management panel (activate / deactivate / change role)
+- [x] Rate limiting on login endpoint
+- [x] Profile picture always visible (defaults to logo)
 - [ ] Audit log table for all admin actions
 - [ ] HTTPS + secure cookie for production deployment

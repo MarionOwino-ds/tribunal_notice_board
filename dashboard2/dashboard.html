@@ -56,7 +56,7 @@
       </button>
     </nav>
     <div class="sidebar-user">
-      <img id="sbProfilePic" src="logo.png" alt="Profile" class="sb-profile-pic" style="display:none;">
+      <img id="sbProfilePic" src="logo.png" alt="Profile" class="sb-profile-pic">
       <div>
         <b id="sbUserName">—</b><br>
         <span id="sbUserDept">—</span>
@@ -76,10 +76,13 @@
 
   <main class="main" id="mainContent">
     <!-- ========== TOP BAR ========== -->
-    <div class="topbar">
-      <div>
-        <h1 id="welcomeTitle">Welcome back</h1>
-        <p id="welcomeSub">Loading your dashboard…</p>
+    <div class="topbar" style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap: 15px;">
+        <img id="topProfilePic" src="logo.png" alt="Profile" style="display:block; width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #cfb53b;">
+        <div>
+          <h1 id="welcomeTitle" style="margin:0;">Welcome back</h1>
+          <p id="welcomeSub" style="margin:0; color:var(--ink-600);">Loading your dashboard…</p>
+        </div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
         <div id="deptSwitcherWrap" style="display:none;">
@@ -321,25 +324,81 @@
       </div>
     </section>
 
-    <!-- ========== PROFILE VIEW ========== -->
-    <section id="view-profile" style="display:none; max-width: 640px;">
-      <div class="notice-card">
-        <h3 style="margin-top:0;">My Profile</h3>
-        <p class="notice-meta">Update your personal details and profile picture.</p>
+    <!-- ========== PROFILE VIEW (WhatsApp style) ========== -->
+    <section id="view-profile" style="display:none; max-width: 680px;">
+
+      <!-- Header banner -->
+      <div style="background: #1E6B44; padding: 24px 28px 60px; border-radius: 12px 12px 0 0; position:relative;">
+        <h2 style="margin:0; color:#fff; font-size:18px;">Profile</h2>
+        <p style="margin:4px 0 0; color:rgba(255,255,255,0.7); font-size:13px;">Your personal information</p>
+      </div>
+
+      <!-- Avatar bubble overlapping the banner -->
+      <div style="display:flex; justify-content:center; margin-top:-50px; position:relative; z-index:2;">
+        <div style="position:relative; display:inline-block;">
+          <img id="profilePreview" src="logo.png" alt="Profile"
+               style="width:100px; height:100px; border-radius:50%; object-fit:cover;
+                      border:4px solid #fff; box-shadow:0 2px 12px rgba(0,0,0,0.15);
+                      background:#e5ddd5; display:block;">
+          <label for="p_picture" title="Change photo"
+                 style="position:absolute; bottom:2px; right:2px;
+                        background:#25D366; border-radius:50%; width:30px; height:30px;
+                        display:flex; align-items:center; justify-content:center;
+                        cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,0.3);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </label>
+          <input type="file" id="p_picture" accept="image/*" style="display:none;">
+        </div>
+      </div>
+
+      <!-- Fields card -->
+      <div style="background:#fff; border-radius:0 0 12px 12px; padding:0 0 12px; box-shadow:0 2px 8px rgba(0,0,0,0.07);">
+
         <form id="profileForm">
-          <div style="text-align:center; margin-bottom: 20px;">
-            <img id="profilePreview" src="logo.png" alt="Profile" class="profile-avatar" style="display:none; margin-bottom: 10px;">
-            <div class="field-input"><input type="file" id="p_picture" accept="image/*" style="padding:10px 14px; width: 100%;"></div>
+
+          <!-- Staff ID (read-only) -->
+          <div style="padding:16px 24px 8px; border-bottom:1px solid #f0f0f0;">
+            <div style="font-size:11px; color:#25D366; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Staff ID</div>
+            <div id="p_staffid_display" style="font-size:15px; color:#111;">—</div>
           </div>
-          <div class="field">
-            <label>Full Name</label>
-            <div class="field-input"><input type="text" id="p_fullname" required></div>
+
+          <!-- Full Name -->
+          <div style="padding:14px 24px 8px; border-bottom:1px solid #f0f0f0;">
+            <div style="font-size:11px; color:#25D366; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Full Name</div>
+            <input type="text" id="p_fullname" required
+                   style="width:100%; border:none; outline:none; font-size:15px; color:#111;
+                          padding:0; background:transparent; font-family:inherit;">
           </div>
-          <div class="field">
-            <label>Email Address</label>
-            <div class="field-input"><input type="email" id="p_email" placeholder="Required for notifications"></div>
+
+          <!-- Email -->
+          <div style="padding:14px 24px 8px; border-bottom:1px solid #f0f0f0;">
+            <div style="font-size:11px; color:#25D366; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Email</div>
+            <input type="email" id="p_email"
+                   style="width:100%; border:none; outline:none; font-size:15px; color:#111;
+                          padding:0; background:transparent; font-family:inherit;">
           </div>
-          <button type="submit" class="btn-primary" id="profileSaveBtn">Save Changes</button>
+
+          <!-- Department (read-only) -->
+          <div style="padding:14px 24px 8px; border-bottom:1px solid #f0f0f0;">
+            <div style="font-size:11px; color:#25D366; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Department</div>
+            <div id="p_dept_display" style="font-size:15px; color:#111;">—</div>
+          </div>
+
+          <!-- Role (read-only) -->
+          <div style="padding:14px 24px 16px;">
+            <div style="font-size:11px; color:#25D366; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px;">Role</div>
+            <div id="p_role_display" style="font-size:15px; color:#111;">—</div>
+          </div>
+
+          <div style="padding:0 24px;">
+            <button type="submit" id="profileSaveBtn"
+                    style="width:100%; background:#25D366; color:#fff; border:none; border-radius:8px;
+                           padding:13px; font-size:15px; font-weight:600; cursor:pointer;
+                           transition:background 0.2s;">
+              Save Changes
+            </button>
+          </div>
+
         </form>
       </div>
     </section>

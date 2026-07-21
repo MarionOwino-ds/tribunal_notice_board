@@ -700,3 +700,31 @@ button { font-family: inherit; cursor: pointer; }
   display: block;
   margin: 0 auto;
 }
+/* Coin Background Overlay Update */
+.main {
+  background: 
+    linear-gradient(135deg, rgba(104, 94, 4, 0.85), rgba(207, 181, 59, 0.85), rgba(245, 158, 11, 0.85), rgba(207, 181, 59, 0.85)),
+    url('../bg-coin.png') !important;
+  background-attachment: fixed !important;
+  background-size: cover, 400px 400px !important;
+  background-position: center, center !important;
+  background-repeat: no-repeat, repeat !important;
+  background-blend-mode: multiply !important;
+}
+
+/* Styling updates requested by user */
+.main {
+  background: #F5F5DC !important; /* Beige background */
+  background-image: none !important; /* Remove coin image */
+}
+
+.topbar {
+  background: #ffffff !important; /* White topbar */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+}
+
+/* --- Topbar: beige background as requested --- */
+.topbar {
+  background: #F5F0DC !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+}

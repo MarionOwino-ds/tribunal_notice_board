@@ -29,22 +29,25 @@ Staff log in with their **Staff ID and password** and see only the notices and d
 
 ### For All Users
 - 🔐 **Authenticated login** — Staff ID + password, session-based auth (8-hour session)
+- 👤 **User Profiles** — View and update profile details, including uploading a profile picture.
 - 📋 **Notice feed** — Searchable, filterable list of notices scoped to the user's tribunal
 - 📌 **Pinned urgent notices** — Urgent items float to the top with a red treatment
 - 📁 **Documents tab** — Browse shared resources and notice attachments
-- 🔔 **Notification bell** — In-app notifications with unread indicator
+- 👁️ **Document Preview** — Built-in modal to preview images, PDFs, and Office documents (via Google Docs Viewer) before downloading.
+- 🔔 **Notification bell** — In-app notifications with unread indicator, paired with email alerts.
 - 🖨️ **Print support** — Print any notice with or without attachment details
 
 ### For Staff
-- 📝 **Submit memos** — Draft and submit memos to a tribunal admin for review
+- 📝 **Submit memos** — Draft and submit memos to a tribunal admin for review, complete with file attachments.
 - 📂 **My Submissions** — Track memo status (pending / approved / rejected)
 - ↩️ **Withdraw memos** — Cancel a pending memo before the admin acts on it
+- 📧 **Email Notifications** — Receive email alerts when a memo is submitted and when it is approved or rejected.
 
 ### For Admins
 - 📣 **Post notices** — Publish notices immediately to one or all tribunals
-- ✅ **Approvals queue** — Review, approve, or reject pending staff memo submissions
-- 📎 **Resource library** — Add shared documents (forms, circulars, templates) by URL
-- 👁️ **Cross-tribunal view** — Filter notices and documents across all six tribunals
+- ✅ **Approvals queue** — Review, approve, or reject pending staff memo submissions and resource uploads.
+- 📎 **Resource library** — Add shared documents (forms, circulars, templates) via local file upload.
+- 👁️ **Cross-tribunal view** — Filter notices and documents dynamically across all tribunals and departments.
 
 ---
 
@@ -255,12 +258,12 @@ The app uses **SQLite** via [sql.js](https://github.com/sql-js/sql.js) (pure Jav
 ## Roadmap
 
 - [x] Fix post-login redirect — works for both Live Server (port 5500) and backend server (port 3000)
-- [ ] Wire dashboard.js publish form to `POST /api/notices`
-- [ ] Wire dashboard.js document upload to `POST /api/resources`
-- [ ] Wire approve / reject buttons to `PATCH /api/notices/:id/status`
-- [ ] Wire withdraw button to `DELETE /api/notices/:id`
+- [x] Wire dashboard.js publish form to `POST /api/notices`
+- [x] Wire dashboard.js document upload to `POST /api/resources`
+- [x] Wire approve / reject buttons to `PATCH /api/notices/:id/status`
+- [x] Wire withdraw button to `DELETE /api/notices/:id`
+- [x] Email notifications on memo approval / rejection
 - [ ] Load real notifications from `GET /api/notifications`
 - [ ] Admin user-management panel (create / deactivate accounts)
-- [ ] Email notifications on memo approval / rejection
 - [ ] Audit log table for all admin actions
 - [ ] HTTPS + secure cookie for production deployment

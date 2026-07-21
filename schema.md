@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS users (
     -- Identity
     full_name     TEXT    NOT NULL,                 -- e.g. "Jane Otieno"
     email         TEXT    UNIQUE,                   -- optional, for future email notifications
+    profile_picture TEXT,                           -- link to uploaded profile avatar
 
     -- Role & tribunal
     role          TEXT    NOT NULL                  -- "admin" or "staff"
@@ -164,6 +165,7 @@ CREATE TABLE IF NOT EXISTS users (
 | `password_hash` | TEXT | ✅ | Hashed password. **Never store plain text.** Use bcrypt or argon2 |
 | `full_name` | TEXT | ✅ | User's display name |
 | `email` | TEXT | ➖ | Email address for future notifications |
+| `profile_picture` | TEXT | ➖ | URL or path to the user's uploaded avatar image |
 | `role` | TEXT | ✅ | Either `"admin"` or `"staff"` |
 | `tribunal_id` | INTEGER | ✅ | Which tribunal this user belongs to |
 | `is_active` | INTEGER | ✅ | `1` = active (can log in), `0` = deactivated |
@@ -314,6 +316,11 @@ CREATE TABLE IF NOT EXISTS resources (
     uploaded_by INTEGER
                 REFERENCES users(id) ON DELETE SET NULL,
 
+    -- Workflow
+    status        TEXT    NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'approved', 'rejected')),
+    reject_reason TEXT,                             -- populated when status = 'rejected'
+
     resource_date TEXT NOT NULL,                    -- the date shown in the UI
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -331,6 +338,8 @@ CREATE TABLE IF NOT EXISTS resources (
 | `tribunal_id` | INTEGER | ➖ | Tribunal scope. `NULL` when `is_public = 1` |
 | `is_public` | INTEGER | ✅ | `1` = visible to all tribunals |
 | `uploaded_by` | INTEGER | ➖ | Admin who added this resource |
+| `status` | TEXT | ✅ | Workflow state: `pending`, `approved`, or `rejected` |
+| `reject_reason` | TEXT | ➖ | Admin's note if rejected |
 | `resource_date` | TEXT | ✅ | Display date shown in the Documents tab |
 | `created_at` | TEXT | ✅ | Record creation timestamp |
 

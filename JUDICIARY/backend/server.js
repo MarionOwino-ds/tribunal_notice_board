@@ -69,6 +69,9 @@ app.use(express.static(path.join(__dirname, '..')));
 // Serve dashboard2 frontend
 app.use(express.static(path.join(__dirname, '..', '..', 'dashboard2')));
 
+// Serve uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // API routes
 app.use('/api/auth',          authRoutes);
 app.use('/api/notices',       noticesRoutes);

@@ -27,7 +27,7 @@ let calendarEvents = [
 /* =========================================================
    VIEWS
    ========================================================= */
-const views = ['feed', 'publish', 'calendar', 'approvals', 'users', 'documents', 'upload-doc'];
+const views = ['feed', 'publish', 'calendar', 'approvals', 'users', 'documents', 'upload-doc', 'profile'];
 
 function showView(name) {
   views.forEach(v => {
@@ -257,16 +257,20 @@ function renderFeed() {
   const pinned  = list.filter(n => n.is_urgent);
   const regular = list.filter(n => !n.is_urgent);
 
-  // Populate category filter from tribunal names
-  const catSelect = document.getElementById('categoryFilter');
-  const existing  = new Set([...catSelect.options].map(o => o.value));
-  [...new Set(mockNotices.map(n => n.tribunal_name).filter(Boolean))].forEach(c => {
-    if (!existing.has(c)) {
-      const opt = document.createElement('option');
-      opt.value = c; opt.textContent = c;
-      catSelect.appendChild(opt);
-    }
-  });
+  // Fetch categories from API
+  fetch(`${API}/users/categories`, { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+      const catSelect = document.getElementById('categoryFilter');
+      const existing  = new Set([...catSelect.options].map(o => o.value));
+      (data.categories || []).forEach(c => {
+        if (!existing.has(c)) {
+          const opt = document.createElement('option');
+          opt.value = c; opt.textContent = c;
+          catSelect.appendChild(opt);
+        }
+      });
+    }).catch(console.error);
 
   const pinnedSection = document.getElementById('pinnedSection');
   const pinnedList    = document.getElementById('pinnedList');
@@ -331,8 +335,25 @@ function openDetail(id) {
   document.getElementById('printBylineBody').textContent = bylineParts.join(' · ');
 
   // Attachment
-  const attachEl    = document.getElementById('detailAttach');
-  attachEl.style.display = 'none';
+  const attachEl = document.getElementById('detailAttach');
+  if (n.attachments && n.attachments.length > 0) {
+    const att = n.attachments[0];
+    attachEl.style.display = 'block';
+    attachEl.innerHTML = `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;align-items:center;justify-content:space-between;background:var(--gray-50);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">📄</span>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:var(--green-950);">${escapeHtml(att.file_name)}</div>
+            <div style="font-size:12px;color:var(--ink-600);">${formatFileSize(att.file_size)}</div>
+          </div>
+        </div>
+        <button class="btn-secondary-sm" onclick="openPreview('${escapeHtml(att.file_url)}', '${escapeHtml(att.file_name)}')">Preview / Download</button>
+      </div>
+    `;
+  } else {
+    attachEl.style.display = 'none';
+  }
 
   // Status banner
   const banner = document.getElementById('readerStatusBanner');
@@ -466,17 +487,18 @@ document.getElementById('unifiedPublishForm').addEventListener('submit', async (
   btn.textContent = 'Submitting…';
 
   try {
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('body', body);
+    formData.append('notice_date', dateVal);
+    formData.append('is_urgent', isUrgent ? 1 : 0);
+    formData.append('is_public', isPublic ? 1 : 0);
+    if (pubSelectedFile) formData.append('file', pubSelectedFile);
+
     const res = await fetch(`${API}/notices`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({
-        title,
-        body,
-        notice_date: dateVal,
-        is_urgent:   isUrgent ? 1 : 0,
-        is_public:   isPublic ? 1 : 0
-      })
+      body: formData
     });
 
     const data = await res.json();
@@ -829,35 +851,29 @@ document.getElementById('docUploadForm').addEventListener('submit', async (e) =>
   btn.textContent = 'Uploading…';
 
   try {
-    // Build a data-URL as the file_url (no file server, just store the reference)
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const fileDataUrl = reader.result;
-      const res = await fetch(`${API}/resources`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          name:          title,
-          description:   desc || null,
-          file_url:      fileDataUrl,
-          file_size:     file.size.toString(),
-          is_public:     isPublic ? 1 : 0,
-          resource_date: new Date().toISOString().slice(0, 10)
-        })
-      });
+    const formData = new FormData();
+    formData.append('name', title);
+    formData.append('doc_type', type);
+    formData.append('description', desc);
+    formData.append('is_public', isPublic ? 1 : 0);
+    formData.append('resource_date', new Date().toISOString().slice(0, 10));
+    formData.append('file', file);
 
-      const data = await res.json();
-      btn.disabled = false;
-      btn.textContent = 'Upload Document';
+    const res = await fetch(`${API}/resources`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData
+    });
 
-      if (!res.ok) { showToast(data.error || 'Upload failed.', 'error'); return; }
+    const data = await res.json();
+    btn.disabled = false;
+    btn.textContent = 'Upload Document';
 
-      document.getElementById('docUploadForm').reset();
-      showToast('Document uploaded successfully.');
-      showView('documents');
-    };
-    reader.readAsDataURL(file);
+    if (!res.ok) { showToast(data.error || 'Upload failed.', 'error'); return; }
+
+    document.getElementById('docUploadForm').reset();
+    showToast('Document uploaded successfully.');
+    showView('documents');
   } catch {
     showToast('Upload failed.', 'error');
     btn.disabled = false;
@@ -986,5 +1002,95 @@ window.approveNotice       = approveNotice;
 window.toggleUser          = toggleUser;
 window.changeRole          = changeRole;
 window.handlePubFileSelect = handlePubFileSelect;
+
+// Profile Updates
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('p_fullname').value.trim();
+  const email = document.getElementById('p_email').value.trim();
+  const file = document.getElementById('p_picture').files[0];
+
+  const btn = document.getElementById('profileSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  const formData = new FormData();
+  if (name) formData.append('full_name', name);
+  if (email) formData.append('email', email);
+  if (file) formData.append('profile_picture', file);
+
+  try {
+    const res = await fetch(`${API}/users/me/profile`, {
+      method: 'PATCH',
+      credentials: 'include',
+      body: formData
+    });
+    if (res.ok) {
+      showToast('Profile updated!');
+      // reload session
+      init();
+    } else {
+      showToast('Failed to update profile', 'error');
+    }
+  } catch(e) {
+    showToast('Error updating profile', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+  }
+});
+
+document.getElementById('p_picture').addEventListener('change', (e) => {
+  if(e.target.files[0]) {
+    document.getElementById('profilePreview').style.display = 'inline-block';
+    document.getElementById('profilePreview').src = URL.createObjectURL(e.target.files[0]);
+  }
+});
+
+// Preview Modal Logic
+function openPreview(url, name) {
+  document.getElementById('previewTitle').textContent = name;
+  document.getElementById('previewDownloadBtn').href = url;
+  
+  const ext = url.split('.').pop().toLowerCase();
+  const content = document.getElementById('previewContent');
+  
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+    content.innerHTML = `<img src="${url}" />`;
+  } else if (['pdf'].includes(ext)) {
+    content.innerHTML = `<iframe src="${url}"></iframe>`;
+  } else {
+    // Attempt 3rd party viewer
+    const absoluteUrl = new URL(url, window.location.href).href;
+    content.innerHTML = `<iframe src="https://docs.google.com/gview?url=${encodeURIComponent(absoluteUrl)}&embedded=true"></iframe>`;
+  }
+  
+  document.getElementById('previewBackdrop').classList.add('open');
+}
+
+function closePreview() {
+  document.getElementById('previewBackdrop').classList.remove('open');
+  document.getElementById('previewContent').innerHTML = ''; // Clear iframe to stop loading
+}
+
+window.openPreview = openPreview;
+window.closePreview = closePreview;
+
+// Wrap init to setup profile form values
+const originalInit = init;
+init = async function() {
+  await originalInit();
+  if (CURRENT_USER) {
+    document.getElementById('p_fullname').value = CURRENT_USER.full_name || '';
+    document.getElementById('p_email').value = CURRENT_USER.email || '';
+    if (CURRENT_USER.profile_picture) {
+      document.getElementById('profilePreview').src = CURRENT_USER.profile_picture;
+      document.getElementById('profilePreview').style.display = 'inline-block';
+      const sbPic = document.getElementById('sbProfilePic');
+      sbPic.src = CURRENT_USER.profile_picture;
+      sbPic.style.display = 'inline-block';
+    }
+  }
+};
 
 init();

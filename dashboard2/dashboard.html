@@ -46,14 +46,21 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         All Users
       </button>
+      <button class="nav-link" data-view="profile">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        My Profile
+      </button>
       <button id="logoutBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Log out
       </button>
     </nav>
     <div class="sidebar-user">
-      <b id="sbUserName">—</b>
-      <span id="sbUserDept">—</span>
+      <img id="sbProfilePic" src="logo.png" alt="Profile" class="sb-profile-pic" style="display:none;">
+      <div>
+        <b id="sbUserName">—</b><br>
+        <span id="sbUserDept">—</span>
+      </div>
     </div>
 
     <div class="sidebar-online" id="sidebarOnline">
@@ -313,6 +320,29 @@
         </form>
       </div>
     </section>
+
+    <!-- ========== PROFILE VIEW ========== -->
+    <section id="view-profile" style="display:none; max-width: 640px;">
+      <div class="notice-card">
+        <h3 style="margin-top:0;">My Profile</h3>
+        <p class="notice-meta">Update your personal details and profile picture.</p>
+        <form id="profileForm">
+          <div style="text-align:center; margin-bottom: 20px;">
+            <img id="profilePreview" src="logo.png" alt="Profile" class="profile-avatar" style="display:none; margin-bottom: 10px;">
+            <div class="field-input"><input type="file" id="p_picture" accept="image/*" style="padding:10px 14px; width: 100%;"></div>
+          </div>
+          <div class="field">
+            <label>Full Name</label>
+            <div class="field-input"><input type="text" id="p_fullname" required></div>
+          </div>
+          <div class="field">
+            <label>Email Address</label>
+            <div class="field-input"><input type="email" id="p_email" placeholder="Required for notifications"></div>
+          </div>
+          <button type="submit" class="btn-primary" id="profileSaveBtn">Save Changes</button>
+        </form>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -430,6 +460,22 @@
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
       <button class="btn-secondary-sm" onclick="closeReject()">Cancel</button>
       <button class="btn-danger" onclick="confirmReject()">Reject</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== DOCUMENT PREVIEW MODAL ========== -->
+<div class="modal-backdrop" id="previewBackdrop">
+  <div class="modal preview-modal">
+    <div class="preview-header">
+      <h3 id="previewTitle" style="margin:0;">Document Preview</h3>
+      <div>
+        <a id="previewDownloadBtn" href="#" target="_blank" class="btn-primary" style="text-decoration:none; margin-right: 10px; padding: 6px 12px; border-radius: 6px;">Download</a>
+        <button class="modal-close" onclick="closePreview()" style="position: static; font-size: 20px; color: var(--ink-600); cursor: pointer; background: none; border: none; padding: 4px 8px;">✕</button>
+      </div>
+    </div>
+    <div class="preview-content" id="previewContent">
+      <!-- Iframe or image inserted here -->
     </div>
   </div>
 </div>

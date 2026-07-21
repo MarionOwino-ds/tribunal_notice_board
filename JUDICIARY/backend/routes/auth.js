@@ -74,12 +74,14 @@ router.post('/login', (req, res) => {
 
   // Store safe user info in session
   req.session.user = {
-    id:          user.id,
-    user_id:     user.user_id,
-    full_name:   user.full_name,
-    role:        user.role,
-    tribunal_id: user.tribunal_id,
-    department:  user.department
+    id:              user.id,
+    user_id:         user.user_id,
+    full_name:       user.full_name,
+    email:           user.email,
+    role:            user.role,
+    tribunal_id:     user.tribunal_id,
+    department:      user.department,
+    profile_picture: user.profile_picture
   };
 
   res.json({ message: 'Login successful.', user: req.session.user });
@@ -93,7 +95,14 @@ router.post('/logout', (req, res) => {
 // GET /api/auth/me — returns current session user
 router.get('/me', (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not authenticated.' });
-  res.json(req.session.user);
+  
+  // Always fetch latest to ensure profile pic and email are up-to-date
+  const user = db.prepare('SELECT id, user_id, full_name, email, role, tribunal_id, department, profile_picture FROM users WHERE id = ?').get(req.session.user.id);
+  if (!user) return res.status(401).json({ error: 'User no longer exists.' });
+  
+  // Update session
+  req.session.user = user;
+  res.json(user);
 });
 
 module.exports = router;

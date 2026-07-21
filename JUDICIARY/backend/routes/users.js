@@ -89,7 +89,7 @@ router.patch('/:id/role', requireAdmin, (req, res) => {
   if (!user) return res.status(404).json({ error: 'User not found.' });
 
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, req.params.id);
-  res.json({ message: \`User role updated to \${role}.\` });
+  res.json({ message: `User role updated to ${role}.` });
 });
 
 module.exports = router;

@@ -85,12 +85,12 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
 
   if (user.role !== 'admin') {
     insertNotif.run(user.id, 'Document successfully sent for approval', name);
-    if (user.email) sendEmail(user.email, 'Document sent for approval', \`Your document "\${name}" has been submitted for approval.\`);
+    if (user.email) sendEmail(user.email, 'Document sent for approval', `Your document "${name}" has been submitted for approval.`);
 
     const admins = db.prepare('SELECT id, email FROM users WHERE role = "admin" AND is_active = 1').all();
     for (const a of admins) {
       insertNotif.run(a.id, 'New Document requires approval', name);
-      if (a.email) sendEmail(a.email, 'New Document Requires Approval', \`Staff user \${user.full_name} uploaded a new document: "\${name}"\`);
+      if (a.email) sendEmail(a.email, 'New Document Requires Approval', `Staff user ${user.full_name} uploaded a new document: "${name}"`);
     }
   }
 
@@ -115,8 +115,8 @@ router.patch('/:id/status', requireAdmin, (req, res) => {
   if (resource.uploaded_by) {
     const uploader = db.prepare('SELECT email FROM users WHERE id = ?').get(resource.uploaded_by);
     const notifTitle = status === 'approved'
-      ? \`Your document "\${resource.name}" was approved\`
-      : \`Your document "\${resource.name}" was rejected\`;
+      ? `Your document "${resource.name}" was approved`
+      : `Your document "${resource.name}" was rejected`;
       
     db.prepare(`
       INSERT INTO notifications (user_id, title, meta)
@@ -124,11 +124,11 @@ router.patch('/:id/status', requireAdmin, (req, res) => {
     `).run(resource.uploaded_by, notifTitle, reject_reason || null);
 
     if (uploader && uploader.email) {
-      sendEmail(uploader.email, 'Document Status Updated', \`\${notifTitle}\n\${reject_reason ? 'Reason: ' + reject_reason : ''}\`);
+      sendEmail(uploader.email, 'Document Status Updated', `${notifTitle}\n${reject_reason ? 'Reason: ' + reject_reason : ''}`);
     }
   }
 
-  res.json({ message: \`Resource \${status}.\` });
+  res.json({ message: `Resource ${status}.` });
 });
 
 // DELETE /api/resources/:id

@@ -147,7 +147,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
       for (const u of users) {
         insertNotif.run(u.id, title, notice_date, ref);
         if (u.email) {
-          sendEmail(u.email, 'New Notice Published', \`Notice: \${title}\nRef: \${ref}\`);
+          sendEmail(u.email, 'New Notice Published', `Notice: ${title}\nRef: ${ref}`);
         }
       }
     });
@@ -156,7 +156,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
     // Notify staff that it was sent for approval
     insertNotif.run(user.id, 'Memo successfully sent for approval', title, ref);
     if (user.email) {
-      sendEmail(user.email, 'Memo sent for approval', \`Your memo "\${title}" has been submitted for approval.\`);
+      sendEmail(user.email, 'Memo sent for approval', `Your memo "${title}" has been submitted for approval.`);
     }
 
     // Notify admins
@@ -164,7 +164,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
     for (const a of admins) {
       insertNotif.run(a.id, 'New Memo requires approval', title, ref);
       if (a.email) {
-        sendEmail(a.email, 'New Memo Requires Approval', \`Staff user \${user.full_name} submitted a new memo: "\${title}"\`);
+        sendEmail(a.email, 'New Memo Requires Approval', `Staff user ${user.full_name} submitted a new memo: "${title}"`);
       }
     }
   }
@@ -191,8 +191,8 @@ router.patch('/:id/status', requireAdmin, (req, res) => {
   if (notice.submitted_by) {
     const submitter = db.prepare('SELECT email FROM users WHERE id = ?').get(notice.submitted_by);
     const notifTitle = status === 'approved'
-      ? \`Your memo "\${notice.title}" was approved\`
-      : \`Your memo "\${notice.title}" was rejected\`;
+      ? `Your memo "${notice.title}" was approved`
+      : `Your memo "${notice.title}" was rejected`;
       
     db.prepare(`
       INSERT INTO notifications (user_id, title, meta, notice_ref)
@@ -200,11 +200,11 @@ router.patch('/:id/status', requireAdmin, (req, res) => {
     `).run(notice.submitted_by, notifTitle, reject_reason || null, notice.ref);
 
     if (submitter && submitter.email) {
-      sendEmail(submitter.email, 'Memo Status Updated', \`\${notifTitle}\n\${reject_reason ? 'Reason: ' + reject_reason : ''}\`);
+      sendEmail(submitter.email, 'Memo Status Updated', `${notifTitle}\n${reject_reason ? 'Reason: ' + reject_reason : ''}`);
     }
   }
 
-  res.json({ message: \`Notice \${status}.\` });
+  res.json({ message: `Notice ${status}.` });
 });
 
 // DELETE /api/notices/:id

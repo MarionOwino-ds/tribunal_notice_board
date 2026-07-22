@@ -7,7 +7,7 @@ node_modules/
 *.db-wal
 
 # Session files
-backend/sessions/
+JUDICIARY/backend/sessions/
 
 # Environment / secrets
 .env
@@ -25,3 +25,7 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+JUDICIARY/backend/sessions/
+*.sqlite-shm
+*.sqlite-wal

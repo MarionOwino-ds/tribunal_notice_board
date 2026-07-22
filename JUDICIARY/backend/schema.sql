@@ -90,9 +90,13 @@ CREATE INDEX IF NOT EXISTS idx_resources_tribunal   ON resources(tribunal_id);
 
 -- Seed tribunals
 INSERT OR IGNORE INTO tribunals (name, short_code, color_hex) VALUES
-  ('Sports Tribunal',                 'ST',   '#123423'),
+  ('Sports Tribunal',                 'ST',   '#1E6B44'),
   ('Employment Tribunal',             'ET',   '#2C5F7C'),
   ('Rent Tribunal',                   'RNT',  '#8C7220'),
   ('Business Premises Rent Tribunal', 'BPRT', '#4A5A3E'),
   ('Rent Restriction Tribunal',       'RRT',  '#7A2E2E'),
   ('Cooperative Tribunal',            'CT',   '#64615A');
+
+-- NOTE: Admin account is seeded by running: node setup.js
+-- This is intentionally not in SQL because bcrypt hashes must be generated at runtime.
+

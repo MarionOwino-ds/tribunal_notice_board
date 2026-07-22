@@ -1,5 +1,5 @@
 const express = require('express');
-const { db } = require('../db');
+const db      = require('../db');
 
 const router = express.Router();
 
@@ -18,6 +18,16 @@ router.get('/', requireAuth, (req, res) => {
   `).all(req.session.user.id);
 
   res.json(notifications);
+});
+
+// GET /api/notifications/count — unread count for badge
+router.get('/count', requireAuth, (req, res) => {
+  const row = db.prepare(`
+    SELECT COUNT(*) as count FROM notifications
+    WHERE user_id = ? AND is_read = 0
+  `).get(req.session.user.id);
+
+  res.json({ count: row.count });
 });
 
 // PATCH /api/notifications/read — mark all unread as read

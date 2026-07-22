@@ -1,4 +1,9 @@
-const API = 'http://localhost:3000/api';
+const API = (function () {
+  if (window.location.protocol === 'file:') {
+    return 'http://localhost:3000/api';
+  }
+  return `${window.location.protocol}//${window.location.host}/api`;
+})();
 
 // Password visibility toggle
 const toggleBtn = document.getElementById('toggle-visibility');
@@ -79,7 +84,15 @@ form.addEventListener('submit', async (e) => {
     }
 
     status.textContent = 'Account created! Redirecting to sign in…';
-    setTimeout(() => { window.location.href = 'index.html'; }, 1500);
+    setTimeout(() => {
+      if (window.location.protocol === 'file:') {
+        window.location.href = 'index.html';
+      } else if (window.location.pathname.startsWith('/JUDICIARY/')) {
+        window.location.href = '/JUDICIARY/index.html';
+      } else {
+        window.location.href = '/index.html';
+      }
+    }, 1500);
 
   } catch {
     status.style.color = '#8A2C2C';

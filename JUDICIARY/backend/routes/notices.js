@@ -160,7 +160,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
     }
 
     // Notify admins
-    const admins = db.prepare('SELECT id, email FROM users WHERE role = "admin" AND is_active = 1').all();
+    const admins = db.prepare("SELECT id, email FROM users WHERE role = 'admin' AND is_active = 1").all();
     for (const a of admins) {
       insertNotif.run(a.id, 'New Memo requires approval', title, ref);
       if (a.email) {

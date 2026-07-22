@@ -31,9 +31,8 @@ const findFreePort = (startPort, maxPort = startPort + 9) => new Promise((resolv
   tryPort(startPort);
 });
 
-app.use(express.json());
-
 // Allow requests from any localhost origin (Live Server, direct file open, etc.)
+// MUST be first — before express.json — so OPTIONS preflight gets CORS headers
 app.use(cors({
   origin: (origin, cb) => {
     // Allow same-origin (no Origin header), null (file://), localhost, and private LAN addresses.
@@ -45,6 +44,8 @@ app.use(cors({
   },
   credentials: true
 }));
+
+app.use(express.json());
 
 // Session middleware
 app.use(session({

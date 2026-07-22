@@ -87,7 +87,7 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
     insertNotif.run(user.id, 'Document successfully sent for approval', name);
     if (user.email) sendEmail(user.email, 'Document sent for approval', `Your document "${name}" has been submitted for approval.`);
 
-    const admins = db.prepare('SELECT id, email FROM users WHERE role = "admin" AND is_active = 1').all();
+    const admins = db.prepare("SELECT id, email FROM users WHERE role = 'admin' AND is_active = 1").all();
     for (const a of admins) {
       insertNotif.run(a.id, 'New Document requires approval', name);
       if (a.email) sendEmail(a.email, 'New Document Requires Approval', `Staff user ${user.full_name} uploaded a new document: "${name}"`);

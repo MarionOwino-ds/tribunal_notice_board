@@ -944,11 +944,11 @@ document.getElementById('docUploadForm').addEventListener('submit', async (e) =>
     const isAdmin = CURRENT_USER && CURRENT_USER.role === 'admin';
     showToast(isAdmin
       ? 'Document uploaded and published.'
-      : 'File sent for approval.');
+      : 'Request for file upload sent successfully.');
     showView('documents');
   } catch (err) {
     console.error('Upload error:', err);
-    showToast('Could not reach the server. Please try again.', 'error');
+    showToast('Upload failed — make sure the backend server is running on port 3000.', 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Upload Document';

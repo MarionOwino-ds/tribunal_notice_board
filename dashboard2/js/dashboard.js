@@ -17,12 +17,8 @@ let pubSelectedFile = null;
 let mockNotices   = [];
 let mockDocuments = [];
 
-// Calendar events (local state — no dedicated API endpoint)
-let calendarEvents = [
-  { id: 1, title: 'Panel B sitting venue maintenance',  date: '2026-07-20T10:00', details: 'Remodelling session for sitting chamber 4' },
-  { id: 2, title: 'Staff training: E-filing tools',     date: '2026-07-22T09:00', details: 'Mandatory half-day refresher on workflow' },
-  { id: 3, title: 'Official sitting: Sports Tribunal',  date: '2026-07-24T08:30', details: 'Hearings for Nairobi Division appeal files' }
-];
+// Calendar events loaded from the backend
+let calendarEvents = [];
 
 /* =========================================================
    VIEWS
@@ -306,6 +302,16 @@ function openDetail(id) {
   if (!n) return;
   currentDetailId = id;
 
+  const canPreview = CURRENT_USER && n.status === 'approved';
+  const previewNotice = () => {
+    document.getElementById('noticeReaderBackdrop').classList.add('open');
+  };
+
+  if (!canPreview && CURRENT_USER && CURRENT_USER.role !== 'admin') {
+    const confirmPreview = confirm('You must preview this notice before you can print it. Continue to view the content?');
+    if (!confirmPreview) return;
+  }
+
   document.getElementById('detailRef').textContent   = n.ref || '';
   document.getElementById('detailDate').textContent  = fmtDate(n.notice_date || n.created_at);
   document.getElementById('detailCat').textContent   = n.tribunal_name || (n.is_public ? 'General' : '');
@@ -373,7 +379,7 @@ function openDetail(id) {
     CURRENT_USER && n.status === 'pending' && n.submitted_by === CURRENT_USER.id
   ) ? '' : 'none';
 
-  document.getElementById('noticeReaderBackdrop').classList.add('open');
+  previewNotice();
 }
 
 function closeDetail() {
@@ -434,6 +440,11 @@ function togglePrintMenu() {
 
 function doPrint(withAttach) {
   const section = document.getElementById('printAttachSectionPrint');
+  const previewed = currentDetailId !== null;
+  if (!previewed && CURRENT_USER && CURRENT_USER.role !== 'admin') {
+    showToast('Please open and review the content before printing.', 'error');
+    return;
+  }
   section.style.display = (withAttach && section.innerHTML.trim()) ? '' : 'none';
   document.getElementById('printMenu').classList.remove('open');
   requestAnimationFrame(() => window.print());
@@ -523,20 +534,29 @@ document.getElementById('unifiedPublishForm').addEventListener('submit', async (
 /* =========================================================
    EVENTS CALENDAR
    ========================================================= */
-function loadCalendarEvents() {
+async function loadCalendarEvents() {
   const listEl = document.getElementById('calendarEventsList');
   if (!listEl) return;
+
+  try {
+    const res = await fetch(`${API}/events`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Failed to load events');
+    calendarEvents = await res.json();
+  } catch {
+    calendarEvents = [];
+  }
 
   if (!calendarEvents.length) {
     listEl.innerHTML = '<div class="empty-state">No upcoming events.</div>';
     return;
   }
 
-  const sorted = [...calendarEvents].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const sorted = [...calendarEvents].sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
   listEl.innerHTML = sorted.map(ev => {
-    const dt            = new Date(ev.date);
+    const dt            = new Date(ev.event_date);
     const dateFormatted = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     const timeFormatted = dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const scopeLabel = ev.event_scope === 'department' ? `Department · ${ev.department || '—'}` : 'General';
     return `
       <div class="notice-card" style="padding:12px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;" onclick="window.open('https://calendar.google.com','_blank')">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
@@ -546,24 +566,46 @@ function loadCalendarEvents() {
         <p style="margin:6px 0 0;font-size:12px;color:var(--ink-600);">${escapeHtml(ev.details || '')}</p>
         <div style="margin-top:8px;font-size:10.5px;color:var(--ink-soft);display:flex;align-items:center;gap:4px;">
           <span>🕒 ${timeFormatted}</span>
-          <span style="margin-left:auto;color:var(--gold-500);font-weight:600;">View Calendar ›</span>
+          <span style="margin-left:auto;color:var(--gold-500);font-weight:600;">${escapeHtml(scopeLabel)}</span>
         </div>
       </div>`;
   }).join('');
 }
 
-document.getElementById('addEventForm').addEventListener('submit', (e) => {
+document.getElementById('addEventForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const title   = document.getElementById('ev_title').value.trim();
   const dtVal   = document.getElementById('ev_datetime').value;
   const details = document.getElementById('ev_details').value.trim();
+  const scope   = document.getElementById('ev_scope').value;
+  const dept    = document.getElementById('ev_department').value;
 
   if (!title || !dtVal) { showToast('Please fill in title and datetime.', 'error'); return; }
 
-  calendarEvents.push({ id: Date.now(), title, date: dtVal, details });
-  document.getElementById('addEventForm').reset();
-  loadCalendarEvents();
-  showToast(`📅 Event added: "${title}"`);
+  try {
+    const res = await fetch(`${API}/events`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, event_date: dtVal, details, event_scope: scope, department: dept })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Failed to add event.', 'error');
+      return;
+    }
+    document.getElementById('addEventForm').reset();
+    document.getElementById('ev_department_wrap').style.display = 'none';
+    await loadCalendarEvents();
+    showToast(`📅 Event added and staff notified: "${title}"`);
+  } catch {
+    showToast('Could not add event.', 'error');
+  }
+});
+
+document.getElementById('ev_scope').addEventListener('change', () => {
+  document.getElementById('ev_department_wrap').style.display =
+    document.getElementById('ev_scope').value === 'department' ? 'block' : 'none';
 });
 
 /* =========================================================
@@ -841,7 +883,12 @@ function renderDocuments() {
   const typeFilter = document.getElementById('docTypeFilter').value;
   const dateFilter = document.getElementById('docDateFilter').value;
 
-  let docs = mockDocuments.filter(d => {
+  const visibleDocs = mockDocuments.filter(d => {
+    if (CURRENT_USER && CURRENT_USER.role !== 'admin' && d.status !== 'approved') return false;
+    return true;
+  });
+
+  let docs = visibleDocs.filter(d => {
     const matchQ    = !q || d.name.toLowerCase().includes(q) || (d.description || '').toLowerCase().includes(q);
     const matchType = !typeFilter || d.doc_type === typeFilter;
     const matchDate = !dateFilter || (d.resource_date || d.created_at || '').slice(0, 10) === dateFilter;

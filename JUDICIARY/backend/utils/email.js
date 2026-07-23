@@ -1,36 +1,41 @@
 const nodemailer = require('nodemailer');
 
-// Set up a transport. Using ethereal for testing, but typically you'd use SMTP creds here.
-const transporter = nodemailer.createTransport({
-    host: 'smtp.ethereal.email',
-    port: 587,
-    auth: {
-        user: 'dummy@ethereal.email', // Replace with real email
-        pass: 'dummy_pass' // Replace with real password
-    }
-});
+const smtpConfig = {
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: process.env.SMTP_USER && process.env.SMTP_PASS ? {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+    } : undefined
+};
 
-// A robust way to mock if credentials are not working
+const transporter = smtpConfig.host ? nodemailer.createTransport(smtpConfig) : null;
+
 function sendEmail(to, subject, text, html) {
     if (!to) return;
-    
+
     const mailOptions = {
-        from: '"Notice Board" <noreply@tribunals.go.ke>',
+        from: process.env.SMTP_FROM || '"Notice Board" <noreply@tribunals.go.ke>',
         to: to,
         subject: subject,
         text: text,
         html: html || text
     };
 
-    // Log it instead of actually failing on fake credentials
+    if (transporter) {
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.error('Email send failed:', error.message);
+            } else {
+                console.log(`Email sent to ${to}: ${info.messageId}`);
+            }
+        });
+        return;
+    }
+
     console.log(`[EMAIL MOCK] To: ${to} | Subject: ${subject}`);
     console.log(`[EMAIL MOCK] Body: ${text}`);
-    
-    // Attempt sending if needed, but for dummy creds we skip to avoid crash
-    // transporter.sendMail(mailOptions, (error, info) => {
-    //     if (error) console.error("Error sending email: ", error);
-    //     else console.log("Email sent: ", info.messageId);
-    // });
 }
 
 module.exports = { sendEmail };

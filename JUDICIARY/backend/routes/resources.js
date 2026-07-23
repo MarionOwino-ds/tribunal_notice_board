@@ -74,9 +74,9 @@ router.post('/', requireAuth, upload.single('file'), (req, res) => {
   }
 
   const result = db.prepare(`
-    INSERT INTO resources (name, description, file_url, file_size, tribunal_id, is_public, uploaded_by, resource_date, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(name, description || null, file_url, file_size, scopedTribunal, is_public ? 1 : 0, user.id, resource_date, status);
+    INSERT INTO resources (name, description, file_url, file_size, tribunal_id, is_public, uploaded_by, resource_date, doc_type, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(name, description || null, file_url, file_size, scopedTribunal, is_public ? 1 : 0, user.id, resource_date, doc_type || 'Document', status);
 
   const insertNotif = db.prepare(`
     INSERT INTO notifications (user_id, title, meta)

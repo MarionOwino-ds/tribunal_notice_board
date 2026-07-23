@@ -9,6 +9,7 @@ const noticesRoutes       = require('./routes/notices');
 const resourcesRoutes     = require('./routes/resources');
 const notificationsRoutes = require('./routes/notifications');
 const usersRoutes         = require('./routes/users');
+const eventsRoutes        = require('./routes/events');
 
 const app  = express();
 const DEFAULT_PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
@@ -79,6 +80,7 @@ app.use('/api/notices',       noticesRoutes);
 app.use('/api/resources',     resourcesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/users',         usersRoutes);
+app.use('/api/events',        eventsRoutes);
 
 // 404 fallback for unknown API routes
 app.use('/api', (req, res) => res.status(404).json({ error: 'Endpoint not found.' }));

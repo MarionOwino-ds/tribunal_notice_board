@@ -227,6 +227,30 @@
                 <label style="font-size:12px;">Event Date &amp; Time</label>
                 <div class="field-input"><input type="datetime-local" id="ev_datetime" required style="padding:8px 10px; font-size:13px;"></div>
               </div>
+              <div class="field" style="margin-bottom:10px;">
+                <label style="font-size:12px;">Audience</label>
+                <div class="field-input">
+                  <select id="ev_scope" style="border:none;outline:none;padding:8px 10px;width:100%;background:transparent;font-size:13px;">
+                    <option value="general">General event</option>
+                    <option value="department">Department only</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field" id="ev_department_wrap" style="margin-bottom:10px; display:none;">
+                <label style="font-size:12px;">Department</label>
+                <div class="field-input">
+                  <select id="ev_department" style="border:none;outline:none;padding:8px 10px;width:100%;background:transparent;font-size:13px;">
+                    <option value="Registry">Registry</option>
+                    <option value="Court Coordination">Court Coordination</option>
+                    <option value="Legal Support">Legal Support</option>
+                    <option value="Human Resources">Human Resources</option>
+                    <option value="IT Services">IT Services</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Public Relations">Public Relations</option>
+                    <option value="Records Management">Records Management</option>
+                  </select>
+                </div>
+              </div>
               <div class="field" style="margin-bottom:12px;">
                 <label style="font-size:12px;">Details</label>
                 <textarea class="field-textarea" id="ev_details" placeholder="Brief event description..." style="min-height:60px; font-size:13px; padding:8px;"></textarea>

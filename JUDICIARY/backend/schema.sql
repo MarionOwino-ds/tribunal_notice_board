@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS resources (
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    title         TEXT NOT NULL,
+    event_date    TEXT NOT NULL,
+    details       TEXT,
+    event_scope   TEXT NOT NULL DEFAULT 'general' CHECK (event_scope IN ('general', 'department')),
+    department    TEXT,
+    created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

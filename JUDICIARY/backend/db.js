@@ -46,11 +46,23 @@ const db = new DatabaseWrapper(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Bootstrap schema on first run
-if (isNew) {
-  const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
-  db.exec(schema);
+function ensureColumn(tableName, columnName, definition) {
+  const tableInfo = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  const exists = tableInfo.some(col => col.name === columnName);
+  if (!exists) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
+  }
 }
+
+// Bootstrap schema and apply migrations for existing databases
+const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
+db.exec(schema);
+ensureColumn('resources', 'doc_type', 'doc_type TEXT');
+ensureColumn('resources', 'status', "status TEXT NOT NULL DEFAULT 'pending'");
+ensureColumn('resources', 'reject_reason', 'reject_reason TEXT');
+ensureColumn('calendar_events', 'event_scope', "event_scope TEXT NOT NULL DEFAULT 'general'");
+ensureColumn('calendar_events', 'department', 'department TEXT');
+ensureColumn('calendar_events', 'created_by', 'created_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
 
 module.exports = db;
 
